@@ -24,7 +24,7 @@ const categories = {
     "Doom","The Elder Scrolls V: Skyrim","Hades","Celeste","Hollow Knight"
   ],
   Consoles: [
-    "PlayStation 2","PlayStation 3","PlayStation 4","PlayStation 5","Xbox",
+    "PlayStation 2","PlayStation 3","PlayStation 4","PlayStation 5","PlayStation Vita","Xbox (console)",
     "Xbox 360","Xbox One","Xbox Series X and Series S","Nintendo Entertainment System",
     "Super Nintendo Entertainment System","Nintendo 64","Nintendo GameCube","Wii","Wii U",
     "Nintendo Switch","Game Boy","Game Boy Advance","Nintendo DS","Nintendo 3DS","PlayStation Portable"
@@ -110,6 +110,23 @@ function normalize(s) {
     .trim();
 }
 
+const answerAliases = {
+  "playstation vita": ["ps vita", "psvita", "ps v ita", "playstation vita"],
+  "xbox console": ["xbox", "xbox console", "original xbox"],
+  "xbox series x and series s": ["xbox series x", "xbox series s", "xbox series x s"],
+  "hunter hunter": ["hunter x hunter", "hxh"],
+  "spy family": ["spy x family", "spy family"],
+  "pokemon": ["pokémon", "pokemon"]
+};
+
+function answerMatches(input, title) {
+  const a = normalize(input);
+  const t = normalize(title);
+  if (similarity(a, t) >= .78) return true;
+  const aliases = answerAliases[t] || [];
+  return aliases.some(x => similarity(a, x) >= .78);
+}
+
 function similarity(a, b) {
   a = normalize(a); b = normalize(b);
   if (a === b) return 1;
@@ -173,12 +190,54 @@ async function searchOpenverse(title) {
   return { image: x.thumbnail || x.url, title, source: "Openverse", pageid: "openverse:" + x.id };
 }
 
+async function getAniListImage(title) {
+  const query = `
+    query ($search: String) {
+      Media(search: $search, type: ANIME) {
+        id
+        title { romaji english native }
+        coverImage { extraLarge large }
+      }
+    }
+  `;
+  const r = await fetch("https://graphql.anilist.co", {
+    method: "POST",
+    headers: {"Content-Type":"application/json","Accept":"application/json"},
+    body: JSON.stringify({ query, variables: { search: title } })
+  });
+  if (!r.ok) throw new Error("AniList request failed");
+  const d = await r.json();
+  const m = d.data?.Media;
+  if (!m?.coverImage?.extraLarge) throw new Error("No AniList image");
+  return {
+    image: m.coverImage.extraLarge,
+    title,
+    source: "AniList",
+    pageid: "anilist:" + m.id
+  };
+}
+
 async function getSubjectImage(title) {
-  const isAnime = current.name === "Anime";
-  const sources = isAnime
-    ? [() => searchCommons(title), () => searchOpenverse(title), () => getWikipediaPage(title)]
-    : [() => searchCommons(title), () => searchOpenverse(title), () => getWikipediaPage(title)];
-  for (const source of sources.sort(() => Math.random() - 0.5)) {
+  // Each category gets a source chosen for that kind of subject.
+  const sourceMap = {
+    Anime: [() => getAniListImage(title), () => getWikipediaPage(title)],
+    Games: [() => getWikipediaPage(title), () => searchCommons(title), () => searchOpenverse(title)],
+    Consoles: [() => getWikipediaPage(title), () => searchCommons(title)],
+    Movies: [() => getWikipediaPage(title), () => searchCommons(title)],
+    TV: [() => getWikipediaPage(title), () => searchCommons(title)],
+    Animation: [() => getWikipediaPage(title), () => searchCommons(title)],
+    Horror: [() => getWikipediaPage(title), () => searchCommons(title)],
+    "Sci-Fi": [() => getWikipediaPage(title), () => searchCommons(title)],
+    Fantasy: [() => getWikipediaPage(title), () => searchCommons(title)],
+    Characters: [() => getWikipediaPage(title), () => searchCommons(title)],
+    People: [() => getWikipediaPage(title), () => searchCommons(title)],
+    Places: [() => getWikipediaPage(title), () => searchCommons(title)],
+    Objects: [() => getWikipediaPage(title), () => searchCommons(title)],
+    Franchises: [() => getWikipediaPage(title), () => searchCommons(title)]
+  };
+
+  const sources = sourceMap[current.name] || [() => getWikipediaPage(title)];
+  for (const source of sources) {
     try { return await source(); } catch (_) {}
   }
   throw new Error("No image source worked");
