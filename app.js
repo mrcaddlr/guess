@@ -231,13 +231,13 @@ function classifyAnswer(input,title) {
   // Dynamic typo detection: handles missing/extra letters, transposed letters,
   // and small per-word mistakes without accepting partial words.
   if(wordTypoMatch(a,t)) {
-    return {correct:true,type:"typo",correctTitle:title};
+    return {correct:false,type:"typo",correctTitle:title};
   }
 
   if(a.length>=5 && t.length>=5){
     const distance=damerauLevenshtein(a,t);
     const limit = t.length >= 14 ? 2 : t.length >= 8 ? 1 : 0;
-    if(distance<=limit) return {correct:true,type:"typo",correctTitle:title};
+    if(distance<=limit) return {correct:false,type:"typo",correctTitle:title};
   }
 
   return {correct:false,type:"wrong"};
@@ -996,17 +996,16 @@ $("#answerForm").addEventListener("submit",event=>{
     streak++;
     const points=100+Math.min(streak-1,10)*10;
     $("#streak").textContent=streak;
-
-    const message=result.type==="typo"
-      ? "close — correct spelling: <strong>"+current.subject.title+"</strong>"
-      : "correct — <strong>"+current.subject.title+"</strong>";
-
-    finish(points,message,true);
+    finish(points,"correct — <strong>"+current.subject.title+"</strong>",true);
     scheduleNext(1100);
+  }else if(result.type==="typo"){
+    $("#feedback").innerHTML="there's a typo — <strong>"+result.correctTitle+"</strong> is the correct spelling. try again.";
+    $("#feedback").className="feedback typo";
+    $("#answer").focus();
   }else{
-    streak=0;
-    $("#streak").textContent="0";
-    finish(0,"not quite. try again, skip, or reveal.",false);
+    $("#feedback").textContent="not quite. try again, skip, or reveal.";
+    $("#feedback").className="feedback wrong";
+    $("#answer").focus();
   }
 });
 
@@ -1057,7 +1056,40 @@ $("#randomCategory").onclick=()=>{
   startCategory(mode.label,mode.pool,mode.source,mode.subcategory);
 };
 
+let liquidGlassInstance=null;
+
+async function initLiquidGlass(){
+  if(!window.LiquidGlass || liquidGlassInstance) return;
+  try{
+    liquidGlassInstance=await window.LiquidGlass.init({
+      root:document.body,
+      glassElements:[document.querySelector(".app")],
+      defaults:{
+        blurAmount:0.16,
+        refraction:0.34,
+        chromAberration:0.025,
+        edgeHighlight:0.10,
+        specular:0.12,
+        fresnel:0.45,
+        distortion:0,
+        cornerRadius:34,
+        zRadius:18,
+        opacity:0.96,
+        saturation:0.06,
+        tintStrength:0.04,
+        brightness:0.04,
+        shadowOpacity:0.28,
+        shadowSpread:18,
+        shadowOffsetY:8
+      }
+    });
+  }catch(error){
+    console.warn("Liquid Glass unavailable; using CSS fallback.",error);
+  }
+}
+
 renderCategories();
+window.addEventListener("load",()=>initLiquidGlass(),{once:true});
 
 ["contextmenu","dragstart"].forEach(type =>
   $("#questionImage").addEventListener(type,event=>event.preventDefault())
