@@ -921,8 +921,10 @@ async function nextRound() {
       ? await prepareConsoleImage(subject).catch(() => subject.image)
       : subject.image;
     if (!current || token !== gameToken) return;
+    $("#questionImage").crossOrigin = "anonymous";
     $("#questionImage").src = playableImage;
     $("#questionImage").alt = "Mystery image";
+    if (liquidGlassInstance) liquidGlassInstance.markChanged($("#questionImage"));
     $("#questionImage").hidden = false;
     $("#imageWrap .loading").textContent = "";
     $("#sourceCredit").href = subject.sourceUrl || "#";
@@ -1090,6 +1092,7 @@ async function initLiquidGlass(){
 
 renderCategories();
 window.addEventListener("load",()=>initLiquidGlass(),{once:true});
+window.addEventListener("liquidglassready",()=>initLiquidGlass(),{once:true});
 
 ["contextmenu","dragstart"].forEach(type =>
   $("#questionImage").addEventListener(type,event=>event.preventDefault())
