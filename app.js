@@ -178,27 +178,30 @@ function levenshtein(a,b) {
   return row[b.length];
 }
 
-function answerMatches(input,title) {
-  const a = normalize(input);
-  const t = normalize(title);
-  if (!a) return false;
-  if (a === t) return true;
+function classifyAnswer(input,title) {
+  const a=normalize(input);
+  const t=normalize(title);
+  if(!a) return {correct:false,type:"empty"};
+  if(a===t) return {correct:true,type:"exact"};
 
-  const aliases = new Set([
-    ...(answerAliases[t] || []),
+  const aliases=new Set([
+    ...(answerAliases[t]||[]),
     ...generatedAliases(title)
   ].map(normalize));
 
-  if ([...aliases].some(alias => alias === a)) return true;
+  if([...aliases].some(alias=>alias===a)) return {correct:true,type:"alias"};
 
-  // Fuzzy matching is deliberately conservative. It only fixes small typos
-  // in reasonably long answers; it never accepts a shorter partial title.
-  if (a.length >= 5 && t.length >= 5) {
-    const limit = Math.max(1, Math.floor(Math.min(a.length,t.length) / 6));
-    if (levenshtein(a,t) <= limit) return true;
+  if(a.length>=5 && t.length>=5){
+    const distance=levenshtein(a,t);
+    const limit=Math.max(1,Math.floor(Math.min(a.length,t.length)/6));
+    if(distance<=limit) return {correct:true,type:"typo",correctTitle:title};
   }
 
-  return false;
+  return {correct:false,type:"wrong"};
+}
+
+function answerMatches(input,title) {
+  return classifyAnswer(input,title).correct;
 }
 function addDropdown(name,subcategories) {
   const button = document.createElement("button");
@@ -665,3 +668,173 @@ async function chooseSubject(snapshot) {
   throw new Error("Couldn't find a usable subject");
 }
 
+async function nextRound() {
+  if (!current) return;
+  const token = gameToken;
+  const snapshot = {
+    pool:[...(current.pool || [])],
+    sourceCategory:current.sourceCategory,
+    subcategory:current.subcategory || "All"
+  };
+
+  busy = true;
+  roundLocked = true;
+  current.subject = null;
+  round++;
+
+  $("#roundLabel").textContent = "round " + round;
+  $("#answer").value = "";
+  $("#feedback").textContent = "";
+  $("#feedback").className = "feedback";
+  $("#lastPoints").textContent = "0";
+  $("#questionImage").hidden = true;
+  $("#questionImage").removeAttribute("src");
+  $("#sourceCredit").hidden = true;
+  $("#imageWrap .loading").textContent = "finding an image…";
+
+  try {
+    const subject = await chooseSubject(snapshot);
+    if (!current || token !== gameToken) return;
+
+    current.subject = subject;
+    $("#questionImage").src = subject.image;
+    $("#questionImage").alt = "Mystery image";
+    $("#questionImage").hidden = false;
+    $("#imageWrap .loading").textContent = "";
+    $("#sourceCredit").href = subject.sourceUrl || "#";
+    $("#sourceCredit").textContent = "image source: " + subject.source;
+    $("#sourceCredit").hidden = !subject.source;
+  } catch (_) {
+    if (token !== gameToken) return;
+    $("#imageWrap .loading").textContent = "couldn't find an image — try another category";
+  }
+
+  if (token !== gameToken || !current) return;
+  busy = false;
+  roundLocked = !current.subject;
+  if (current.subject) $("#answer").focus();
+}
+
+function startCategory(name,pool,sourceCategory,subcategory) {
+  clearTimeout(transitionTimer);
+  gameToken++;
+  busy=true;
+  roundLocked=true;
+  current={
+    name,
+    pool:pool || [],
+    sourceCategory:sourceCategory || name,
+    subcategory:subcategory || "All",
+    subject:null
+  };
+  round=0;
+  used.clear();
+  $("#categoryLabel").textContent=name.toUpperCase();
+  $("#home").classList.remove("active");
+  $("#game").classList.add("active");
+  nextRound();
+}
+
+function scheduleNext(delay) {
+  clearTimeout(transitionTimer);
+  roundLocked=true;
+  transitionTimer=setTimeout(()=>{
+    transitionTimer=null;
+    nextRound();
+  },delay);
+}
+
+function finish(points,message,good) {
+  score+=points;
+  $("#score").textContent=score;
+  $("#lastPoints").textContent=points;
+  $("#feedback").innerHTML=message;
+  $("#feedback").className="feedback "+(good ? "good" : "bad");
+}
+
+$("#questionImage").addEventListener("error",()=>{
+  if(busy || !current?.subject || roundLocked) return;
+  used.delete(normalize(current.subject.title));
+  current.subject=null;
+  nextRound();
+});
+
+$("#answerForm").addEventListener("submit",event=>{
+  event.preventDefault();
+  if(!current?.subject || busy || roundLocked) return;
+
+  const guess=$("#answer").value.trim();
+  if(!guess) return;
+
+  const result=classifyAnswer(guess,current.subject.title);
+
+  if(result.correct){
+    streak++;
+    const points=100+Math.min(streak-1,10)*10;
+    $("#streak").textContent=streak;
+
+    const message=result.type==="typo"
+      ? "close — correct spelling: <strong>"+current.subject.title+"</strong>"
+      : "correct — <strong>"+current.subject.title+"</strong>";
+
+    finish(points,message,true);
+    scheduleNext(1100);
+  }else{
+    streak=0;
+    $("#streak").textContent="0";
+    finish(0,"not quite. try again, skip, or reveal.",false);
+  }
+});
+
+$("#skip").onclick=()=>{
+  if(!current?.subject || busy || roundLocked) return;
+  streak=0;
+  $("#streak").textContent="0";
+  finish(0,"skipped — <strong>"+current.subject.title+"</strong>",false);
+  scheduleNext(700);
+};
+
+$("#reveal").onclick=()=>{
+  if(!current?.subject || busy || roundLocked) return;
+  streak=0;
+  $("#streak").textContent="0";
+  finish(0,"the answer was <strong>"+current.subject.title+"</strong>",false);
+  scheduleNext(1000);
+};
+
+$("#homeBrand").onclick=event=>{
+  event.preventDefault();
+  $("#backHome").click();
+};
+
+$("#backHome").onclick=()=>{
+  clearTimeout(transitionTimer);
+  gameToken++;
+  transitionTimer=null;
+  busy=false;
+  roundLocked=false;
+  current=null;
+  $("#game").classList.remove("active");
+  $("#home").classList.add("active");
+};
+
+$("#randomCategory").onclick=()=>{
+  const modes=[];
+  Object.entries(movieSubcategories).forEach(([name,pool]) =>
+    modes.push({label:"Movies — "+name,pool,source:"Movies",subcategory:name})
+  );
+  Object.entries(tvSubcategories).forEach(([name,pool]) =>
+    modes.push({label:"TV — "+name,pool,source:"TV",subcategory:name})
+  );
+  Object.keys(categories).filter(name=>name!=="Movies" && name!=="TV")
+    .forEach(name=>modes.push({label:name,pool:categories[name],source:name,subcategory:"All"}));
+
+  const mode=modes[Math.floor(Math.random()*modes.length)];
+  startCategory(mode.label,mode.pool,mode.source,mode.subcategory);
+};
+
+renderCategories();
+
+["contextmenu","dragstart"].forEach(type =>
+  $("#questionImage").addEventListener(type,event=>event.preventDefault())
+);
