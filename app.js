@@ -217,30 +217,70 @@ async function getAniListImage(title) {
   };
 }
 
+async function searchTMDB(title, type) {
+  const key = localStorage.getItem("tmdb_api_key");
+  if (!key) throw new Error("TMDB API key not configured");
+  const endpoint = type === "movie" ? "movie" : "tv";
+  const r = await fetch("https://api.themoviedb.org/3/search/" + endpoint + "?api_key=" + encodeURIComponent(key) + "&query=" + encodeURIComponent(title));
+  if (!r.ok) throw new Error("TMDB request failed");
+  const d = await r.json();
+  const item = d.results?.[0];
+  if (!item?.poster_path) throw new Error("No TMDB image");
+  return { image: "https://image.tmdb.org/t/p/w1280" + item.poster_path, title, source: "TMDB", pageid: "tmdb:" + item.id };
+}
+
+async function getRAWGImage(title) {
+  const key = localStorage.getItem("rawg_api_key");
+  if (!key) throw new Error("RAWG API key not configured");
+  const r = await fetch("https://api.rawg.io/api/games?key=" + encodeURIComponent(key) + "&search=" + encodeURIComponent(title) + "&page_size=5");
+  if (!r.ok) throw new Error("RAWG request failed");
+  const d = await r.json();
+  const game = d.results?.find(x => x.background_image);
+  if (!game) throw new Error("No RAWG image");
+  return { image: game.background_image, title, source: "RAWG", pageid: "rawg:" + game.id };
+}
+
+async function getIGDBImage(title) {
+  const clientId = localStorage.getItem("igdb_client_id");
+  const token = localStorage.getItem("igdb_access_token");
+  if (!clientId || !token) throw new Error("IGDB credentials not configured");
+  const r = await fetch("https://api.igdb.com/v4/games", {
+    method: "POST",
+    headers: { "Client-ID": clientId, "Authorization": "Bearer " + token, "Content-Type": "text/plain" },
+    body: 'search "' + title.replace(/"/g, '\"') + '"; fields name,cover.image_id,artworks.image_id,screenshots.image_id; limit 5;'
+  });
+  if (!r.ok) throw new Error("IGDB request failed");
+  const d = await r.json();
+  const game = d.find(x => x.cover?.image_id || x.artworks?.[0]?.image_id || x.screenshots?.[0]?.image_id);
+  if (!game) throw new Error("No IGDB image");
+  const id = game.cover?.image_id || game.artworks?.[0]?.image_id || game.screenshots?.[0]?.image_id;
+  return { image: "https://images.igdb.com/igdb/image/upload/t_1080p/" + id + ".jpg", title, source: "IGDB", pageid: "igdb:" + game.id };
+}
+
 async function getSubjectImage(title) {
-  // Each category gets a source chosen for that kind of subject.
+  // Every category has its own domain-first provider. Generic sources are only fallbacks.
   const sourceMap = {
-    Anime: [() => getAniListImage(title), () => getWikipediaPage(title)],
-    Games: [() => getWikipediaPage(title), () => searchCommons(title), () => searchOpenverse(title)],
-    Consoles: [() => getWikipediaPage(title), () => searchCommons(title)],
-    Movies: [() => getWikipediaPage(title), () => searchCommons(title)],
-    TV: [() => getWikipediaPage(title), () => searchCommons(title)],
-    Animation: [() => getWikipediaPage(title), () => searchCommons(title)],
-    Horror: [() => getWikipediaPage(title), () => searchCommons(title)],
-    "Sci-Fi": [() => getWikipediaPage(title), () => searchCommons(title)],
-    Fantasy: [() => getWikipediaPage(title), () => searchCommons(title)],
-    Characters: [() => getWikipediaPage(title), () => searchCommons(title)],
-    People: [() => getWikipediaPage(title), () => searchCommons(title)],
-    Places: [() => getWikipediaPage(title), () => searchCommons(title)],
-    Objects: [() => getWikipediaPage(title), () => searchCommons(title)],
-    Franchises: [() => getWikipediaPage(title), () => searchCommons(title)]
+    Anime: [() => getAniListImage(title)],
+    Games: [() => getRAWGImage(title), () => getIGDBImage(title)],
+    Movies: [() => searchTMDB(title, "movie")],
+    TV: [() => searchTMDB(title, "tv")],
+    Animation: [() => searchTMDB(title, "movie"), () => searchTMDB(title, "tv")],
+    Horror: [() => searchTMDB(title, "movie"), () => searchTMDB(title, "tv")],
+    "Sci-Fi": [() => searchTMDB(title, "movie"), () => searchTMDB(title, "tv")],
+    Fantasy: [() => searchTMDB(title, "movie"), () => searchTMDB(title, "tv")],
+    Consoles: [() => getWikipediaPage(title)],
+    Characters: [() => getWikipediaPage(title)],
+    People: [() => searchTMDB(title, "movie"), () => getWikipediaPage(title)],
+    Places: [() => getWikipediaPage(title)],
+    Objects: [() => getWikipediaPage(title)],
+    Franchises: [() => getWikipediaPage(title)]
   };
 
   const sources = sourceMap[current.name] || [() => getWikipediaPage(title)];
   for (const source of sources) {
     try { return await source(); } catch (_) {}
   }
-  throw new Error("No image source worked");
+  throw new Error("No category-specific image source worked");
 }
 
 async function chooseSubject() {
