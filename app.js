@@ -936,13 +936,9 @@ async function initLiquidGlass(){
   if(!window.LiquidGlass || liquidGlassInstance) return;
 
   const root=document.querySelector("#liquidRoot");
-  const glass=document.querySelector("#glassOverlay");
+  const glass=document.querySelector(".app");
   if(!root || !glass) return;
 
-  // IMPORTANT: the glass must be a sibling of the page content.
-  // LiquidGlass rasterises non-glass root children as the scene behind the
-  // shader. Making the entire app the glass causes the renderer to have
-  // nothing useful behind it.
   const timeout=(promise,ms)=>Promise.race([
     promise,
     new Promise((_,reject)=>setTimeout(
@@ -959,30 +955,31 @@ async function initLiquidGlass(){
         root,
         glassElements:[glass],
         defaults:{
-          blurAmount:0.22,
-          refraction:0.38,
-          chromAberration:0.012,
-          edgeHighlight:0.07,
-          specular:0.08,
-          fresnel:0.48,
+          blurAmount:0.28,
+          refraction:0.58,
+          chromAberration:0.01,
+          edgeHighlight:0.06,
+          specular:0.06,
+          fresnel:0.42,
           distortion:0,
           cornerRadius:34,
           zRadius:20,
-          opacity:0.88,
+          opacity:0.92,
           saturation:0.02,
-          tintStrength:0.015,
-          brightness:0.015,
-          shadowOpacity:0.25,
-          shadowSpread:16,
-          shadowOffsetY:7,
+          tintStrength:0.01,
+          brightness:0.01,
+          shadowOpacity:0.30,
+          shadowSpread:12,
+          shadowOffsetY:5,
           bevelMode:0
         }
       }),
-      2500
+      15000
     );
 
     glass.classList.remove("webgl-glass-loading");
     glass.classList.add("webgl-glass-ready");
+    liquidGlassInstance.markChanged();
   }catch(error){
     console.warn("Liquid Glass failed; using the CSS fallback.",error);
     liquidGlassInstance=null;
