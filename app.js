@@ -752,15 +752,26 @@ async function nextRound() {
     if (!current || token !== gameToken) return;
 
     current.subject = subject;
+
+    // Show console hardware immediately as a deliberately blurred preview.
+    // The answer stays locked until the smart masking pipeline finishes.
+    const imageEl = $("#questionImage");
+    imageEl.crossOrigin = "anonymous";
+    imageEl.src = subject.image;
+    imageEl.alt = "Mystery image";
+    imageEl.classList.toggle("vision-pending", subject.category === "Consoles");
+    imageEl.hidden = false;
+    $("#imageWrap .loading").textContent = subject.category === "Consoles" ? "preparing image…" : "";
+
     const playableImage = subject.category === "Consoles"
       ? await prepareConsoleImage(subject).catch(() => subject.image)
       : subject.image;
+
     if (!current || token !== gameToken) return;
-    $("#questionImage").crossOrigin = "anonymous";
-    $("#questionImage").src = playableImage;
-    $("#questionImage").alt = "Mystery image";
-    if (liquidGlassInstance) liquidGlassInstance.markChanged($("#questionImage"));
-    $("#questionImage").hidden = false;
+
+    imageEl.src = playableImage;
+    imageEl.classList.remove("vision-pending");
+    if (liquidGlassInstance) liquidGlassInstance.markChanged(imageEl);
     $("#imageWrap .loading").textContent = "";
     $("#sourceCredit").href = subject.sourceUrl || "#";
     $("#sourceCredit").textContent = "image source: " + subject.source;
