@@ -387,3 +387,32 @@ button{touch-action:manipulation}
 .app::after{
   z-index:2;
 }
+
+/* WebGL Liquid Glass owns the visual glass surface after initialization.
+   Keep the CSS version as a real fallback, but don't stack backdrop-filter
+   over the WebGL renderer. */
+#liquidRoot{
+  position:relative;
+  min-height:100vh;
+  isolation:isolate;
+}
+#liquidRoot > .liquid-bg{z-index:0}
+#liquidRoot > .app{z-index:1}
+.app.webgl-glass-loading{background:rgba(255,255,255,.055)}
+.app.webgl-glass-ready{
+  background:transparent;
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
+.app.webgl-glass-ready .topbar,
+.app.webgl-glass-ready .stats span,
+.app.webgl-glass-ready .round-score,
+.app.webgl-glass-ready .category,
+.app.webgl-glass-ready .card,
+.app.webgl-glass-ready #answer{
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
+@media(prefers-reduced-transparency:reduce){
+  .app.webgl-glass-ready{background:rgba(18,18,22,.92)}
+}
