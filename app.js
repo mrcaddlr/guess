@@ -123,33 +123,6 @@ function generatedAliases(title) {
   return [...out];
 }
 
-function similarity(a,b) {
-  a = normalize(a); b = normalize(b);
-  if (a === b) return 1;
-  if (!a || !b) return 0;
-  if (a.includes(b) || b.includes(a)) return .88;
-  const aa = new Set(a.split(" ")), bb = new Set(b.split(" "));
-  let hits = 0;
-  aa.forEach(word => { if (bb.has(word)) hits++; });
-  return hits / Math.max(aa.size,bb.size);
-}
-
-function levenshtein(a,b) {
-  const row = Array.from({length:b.length + 1},(_,i) => i);
-  for(let i=1;i<=a.length;i++){
-    let diagonal = row[0];
-    row[0] = i;
-    for(let j=1;j<=b.length;j++){
-      const above = row[j];
-      row[j] = a[i-1] === b[j-1]
-        ? diagonal
-        : Math.min(diagonal + 1,row[j] + 1,row[j-1] + 1);
-      diagonal = above;
-    }
-  }
-  return row[b.length];
-}
-
 function answerMatches(input,title) {
   const a = normalize(input);
   const t = normalize(title);
@@ -476,6 +449,8 @@ $("#reveal").onclick = () => {
   finish(0,"the answer was <strong>" + current.subject.title + "</strong>",false);
   scheduleNext(1000);
 };
+
+$("#homeBrand").onclick = event => { event.preventDefault(); $("#backHome").click(); };
 
 $("#backHome").onclick = () => {
   clearTimeout(transitionTimer);
