@@ -258,6 +258,15 @@
   }
 
   async function runOCR(canvas) {
+    const maxWidth = 720;
+    if (canvas.width > maxWidth) {
+      const scaled = document.createElement("canvas");
+      scaled.width = maxWidth;
+      scaled.height = Math.max(1, Math.round(canvas.height * maxWidth / canvas.width));
+      scaled.getContext("2d").drawImage(canvas, 0, 0, scaled.width, scaled.height);
+      canvas = scaled;
+    }
+
     const worker = await getOCRWorker();
     const result = await worker.recognize(canvas, {}, { blocks: true });
     const blocks = result?.data?.blocks || [];
@@ -721,10 +730,13 @@
     }
 
     let objects = [];
-    const needsObjectPass =
-      ocr.lines.some(line => phraseMatchScore(line.text, profile).score >= 0.45) ||
-      ocr.lines.length > 2 ||
-      quick.variance > 900;
+    // Heavy object detection is an ambiguity resolver, not a prerequisite for
+    // every console. Most rounds are decided safely from exact OCR evidence.
+    const preliminaryCandidates = makeTextCandidates(ocr, profile, canvas);
+    const needsObjectPass = preliminaryCandidates.some(candidate => {
+      const relevance = candidate.answerRelevance;
+      return relevance >= 0.45 && relevance < 0.90;
+    });
 
     if (needsObjectPass) objects = await detectAnswerObjects(canvas, profile);
     report.stages.objects = objects;
@@ -738,7 +750,7 @@
       return { kind: "reject", report };
     }
 
-    let candidates = makeTextCandidates(ocr, profile, canvas)
+    let candidates = preliminaryCandidates
       .map(candidate => candidateScore(candidate, profile, objects, canvas));
 
     candidates = mergeNearbyCandidates(candidates);
@@ -759,7 +771,7 @@
 
     // A second semantic pass over a few deterministic image tiles catches
     // graphical logos that OCR missed without scanning arbitrary edge windows.
-    if (!best && !ocr.lines.length) {
+    if (!best && !ocr.lines.length && debugEnabled) {
       const tiles = [];
       const cols = 3;
       const rows = 3;
@@ -977,6 +989,13 @@
 
   function getLastReport() {
     return lastReport;
+  }
+
+  const prewarmOCR = () => getOCRWorker().catch(() => {});
+  if ("requestIdleCallback" in window) {
+    requestIdleCallback(prewarmOCR, { timeout: 3500 });
+  } else {
+    setTimeout(prewarmOCR, 2500);
   }
 
   window.GuessVision = {
