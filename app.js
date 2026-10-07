@@ -22,10 +22,11 @@ const categories = {
     "The Elder Scrolls V: Skyrim","Hades","Celeste","Hollow Knight"
   ],
   Consoles: [
-    "PlayStation 2","PlayStation 3","PlayStation 4","PlayStation 5","PlayStation Vita","Xbox (console)",
-    "Xbox 360","Xbox One","Xbox Series X and Series S","Nintendo Entertainment System",
-    "Super Nintendo Entertainment System","Nintendo 64","Nintendo GameCube","Wii","Wii U",
-    "Nintendo Switch","Game Boy","Game Boy Advance","Nintendo DS","Nintendo 3DS","PlayStation Portable"
+    "PlayStation","PlayStation 2","PlayStation 3","PlayStation 4","PlayStation 5","PlayStation Vita","PlayStation Portable",
+    "Xbox","Xbox 360","Xbox One","Xbox Series X","Xbox Series S","Nintendo Entertainment System",
+    "Super Nintendo Entertainment System","Nintendo 64","Nintendo GameCube","Wii","Wii U","Nintendo Switch",
+    "Nintendo Switch Lite","Nintendo Switch OLED","Game Boy","Game Boy Color","Game Boy Advance","Nintendo DS",
+    "Nintendo 3DS","Sega Genesis","Sega Saturn","Dreamcast","Atari 2600","Neo Geo"
   ],
   Characters: [
     "Mario","Luigi","Link","Pikachu","Sonic the Hedgehog","Pac-Man","Kirby","Samus Aran","Mega Man",
@@ -88,25 +89,61 @@ let score = 0, streak = 0, round = 0, current = null, used = new Set();
 let busy = false, roundLocked = false, transitionTimer = null, gameToken = 0;
 
 const answerAliases = {
-  "playstation vita":["ps vita","psv","psvita","ps v ita"],
-  "playstation 2":["ps2","ps 2"], "playstation 3":["ps3","ps 3"], "playstation 4":["ps4","ps 4"],
-  "playstation 5":["ps5","ps 5"], "playstation portable":["psp"],
-  "xbox console":["xbox","original xbox"], "xbox 360":["x360","xbox360"], "xbox one":["xbone"],
-  "xbox series x and series s":["xbox series x","xbox series s","xbox series xs"],
-  "nintendo entertainment system":["nes","famicom"], "super nintendo entertainment system":["snes","super nintendo"],
-  "nintendo 64":["n64"], "nintendo gamecube":["gamecube","gc"], "nintendo switch":["switch"],
-  "game boy":["gameboy","gb"], "game boy advance":["gba"], "nintendo ds":["nds","ds"], "nintendo 3ds":["3ds"],
-  "grand theft auto v":["gta v","gta 5","gtav"], "the legend of zelda breath of the wild":["botw","breath of the wild"],
-  "red dead redemption 2":["rdr2","red dead 2"], "the elder scrolls v skyrim":["skyrim"],
-  "resident evil 4":["re4"], "five nights at freddys":["fnaf"], "the last of us":["tlou"],
-  "the lord of the rings":["lotr"], "game of thrones":["got"], "better call saul":["bcs"],
-  "attack on titan":["aot","snk"], "my hero academia":["mha","bnha"], "fullmetal alchemist":["fma","fmab"],
-  "jojo s bizarre adventure":["jojo","jjba"], "spy family":["spy x family"], "one punch man":["opm"],
-  "hunter hunter":["hxh","hunter x hunter"], "jujutsu kaisen":["jjk"], "demon slayer":["kny"],
-  "chainsaw man":["csm"], "neon genesis evangelion":["nge","evangelion"], "pokemon":["pokémon"],
-  "dwayne johnson":["the rock"], "robert downey jr":["rdj"], "new york city":["new york","nyc"],
-  "master sword":["mastersword"], "keyblade":["key blade"], "triforce":["tri force"],
-  "lightsaber":["light saber","lightsabre"], "one ring":["ring of power"]
+  "playstation":["ps1","psx","playstation 1"],
+  "playstation 2":["ps2","ps 2"],
+  "playstation 3":["ps3","ps 3"],
+  "playstation 4":["ps4","ps 4"],
+  "playstation 5":["ps5","ps 5"],
+  "playstation vita":["ps vita","psv","psvita","psv vita","vita"],
+  "playstation portable":["psp","ps portable"],
+  "xbox":["original xbox"],
+  "xbox 360":["x360","xbox360"],
+  "xbox one":["xbone","xbox1","xbox 1"],
+  "xbox series x":["xboxseriesx","series x"],
+  "xbox series s":["xboxseriess","series s"],
+  "nintendo entertainment system":["nes","famicom"],
+  "super nintendo entertainment system":["snes","super nintendo","super famicom"],
+  "nintendo 64":["n64"],
+  "nintendo gamecube":["gamecube","gc"],
+  "nintendo switch":["switch"],
+  "nintendo switch lite":["switch lite"],
+  "nintendo switch oled":["switch oled","switch oled model"],
+  "game boy":["gameboy","gb"],
+  "game boy color":["gameboy color","gbc"],
+  "game boy advance":["gba","gameboy advance"],
+  "nintendo ds":["nds"],
+  "nintendo 3ds":["3ds"],
+  "sega genesis":["mega drive"],
+  "grand theft auto v":["gta v","gta 5","gtav"],
+  "the legend of zelda breath of the wild":["botw","breath of the wild"],
+  "red dead redemption 2":["rdr2","red dead 2"],
+  "the elder scrolls v skyrim":["skyrim"],
+  "resident evil 4":["re4"],
+  "five nights at freddys":["fnaf"],
+  "the last of us":["tlou"],
+  "the lord of the rings":["lotr"],
+  "game of thrones":["got"],
+  "better call saul":["bcs"],
+  "attack on titan":["aot","snk"],
+  "my hero academia":["mha","bnha"],
+  "fullmetal alchemist":["fma","fmab"],
+  "jojo s bizarre adventure":["jojo","jjba"],
+  "spy family":["spy x family"],
+  "one punch man":["opm"],
+  "hunter hunter":["hxh","hunter x hunter"],
+  "jujutsu kaisen":["jjk"],
+  "demon slayer":["kny","kimetsu no yaiba"],
+  "chainsaw man":["csm"],
+  "neon genesis evangelion":["nge","evangelion"],
+  "pokemon":["pokémon"],
+  "dwayne johnson":["the rock"],
+  "robert downey jr":["rdj"],
+  "new york city":["new york","nyc"],
+  "master sword":["mastersword"],
+  "keyblade":["key blade"],
+  "triforce":["tri force"],
+  "lightsaber":["light saber","lightsabre"],
+  "one ring":["ring of power"]
 };
 
 function normalize(value) {
@@ -147,12 +184,17 @@ function answerMatches(input,title) {
   if (!a) return false;
   if (a === t) return true;
 
-  const aliases = new Set([...(answerAliases[t] || []),...generatedAliases(title)].map(normalize));
-  if ([...aliases].some(alias => a === alias)) return true;
+  const aliases = new Set([
+    ...(answerAliases[t] || []),
+    ...generatedAliases(title)
+  ].map(normalize));
 
-  // Allow small typos, but do not accept arbitrary short substrings like "bat" for "batman".
+  if ([...aliases].some(alias => alias === a)) return true;
+
+  // Fuzzy matching is deliberately conservative. It only fixes small typos
+  // in reasonably long answers; it never accepts a shorter partial title.
   if (a.length >= 5 && t.length >= 5) {
-    const limit = Math.max(1,Math.floor(Math.max(a.length,t.length) / 5));
+    const limit = Math.max(1, Math.floor(Math.min(a.length,t.length) / 6));
     if (levenshtein(a,t) <= limit) return true;
   }
 
@@ -176,7 +218,7 @@ function addDropdown(name,subcategories) {
     subButton.innerHTML = "<strong>" + sub + "</strong><span>" + pool.length + " subjects</span>";
     subButton.onclick = event => {
       event.stopPropagation();
-      startCategory(name + " — " + sub,pool,name);
+      startCategory(name + " — " + sub,pool,name,sub);
     };
     grid.appendChild(subButton);
   });
@@ -217,19 +259,219 @@ const animeSourceQueries = {
   "jojo s bizarre adventure":"JoJo no Kimyou na Bouken"
 };
 
-async function getWikipediaPage(title) {
+const IMAGE_REJECT_PATTERNS = [
+  /\blogo\b/i, /\bwordmark\b/i, /\bicon\b/i, /\bsymbol\b/i, /\bemblem\b/i,
+  /\bmonogram\b/i, /\bseal\b/i, /\bbadge\b/i, /\btitle.?card\b/i, /\bbrand.?mark\b/i
+];
+
+const CONSOLE_IMAGE_REJECT_PATTERNS = [
+  ...IMAGE_REJECT_PATTERNS,
+  /\bcontroller\b/i, /\bgamepad\b/i, /\bjoystick\b/i, /\bremote\b/i,
+  /\bbox art\b/i, /\bpackaging\b/i, /\bpackage\b/i, /\bmanual\b/i,
+  /\bscreenshot\b/i, /\bwallpaper\b/i, /\bbanner\b/i
+];
+
+const CONSOLE_TITLE_REJECT_PATTERNS = [
+  /\bdivision\b/i, /\bcompany\b/i, /\bcorporation\b/i, /\bbrand\b/i,
+  /\bservice\b/i, /\bnetwork\b/i, /\bstore\b/i, /\blogo\b/i, /\bcontroller\b/i,
+  /\baccessory\b/i, /\bprototype\b/i, /\bdevelopment\b/i
+];
+
+function imageNameLooksBad(name,category) {
+  const value = String(name || "");
+  const patterns = category === "Consoles"
+    ? CONSOLE_IMAGE_REJECT_PATTERNS
+    : IMAGE_REJECT_PATTERNS;
+  return patterns.some(pattern => pattern.test(value));
+}
+
+function consoleTitleLooksValid(title) {
+  const value = String(title || "");
+  if (CONSOLE_TITLE_REJECT_PATTERNS.some(pattern => pattern.test(value))) return false;
+  const normalized = normalize(value)
+    .replace(/\s+console$/,"")
+    .replace(/\s+system$/,"");
+  if (!normalized || normalized === "video game console" || normalized === "video game consoles") return false;
+  if (/^xbox (series x and series s|series x s)$/.test(normalized)) return false;
+  return true;
+}
+
+function canonicalConsoleTitle(title) {
+  return String(title || "").replace(/\s+\((console|video game console)\)$/i,"").trim();
+}
+
+function imageIsUsable(info,category) {
+  if (!info?.url) return false;
+  if (/^image\/svg/i.test(info.mime || "")) return false;
+  if (imageNameLooksBad(info.name,category)) return false;
+  const width = Number(info.width || 0);
+  const height = Number(info.height || 0);
+  if (width && height) {
+    if (Math.min(width,height) < 260) return false;
+    const ratio = Math.max(width,height) / Math.max(1,Math.min(width,height));
+    if (ratio > 4.5) return false;
+  }
+  return true;
+}
+
+function scoreImage(info,category) {
+  const name = String(info.name || "");
+  let score = 0;
+  if (/\.jpe?g$|\.png$|\.webp$/i.test(name)) score += 10;
+  if ((info.width || 0) >= 700 && (info.height || 0) >= 500) score += 6;
+  if (category === "Consoles") {
+    if (/\bconsole\b|\bsystem\b/i.test(name)) score += 10;
+    if (/\bseries x\b|\bseries s\b|\bxbox\b|\bplaystation\b|\bnintendo\b|\bgame boy\b|\bsega\b|\batari\b/i.test(name)) score += 4;
+  }
+  return score;
+}
+
+async function getWikipediaAlternateImage(pageId,category) {
+  const imagesUrl = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=images" +
+    "&imlimit=50&pageids=" + encodeURIComponent(pageId);
+  const imagesResponse = await fetch(imagesUrl);
+  if (!imagesResponse.ok) throw new Error("Wikipedia image list failed");
+
+  const page = Object.values((await imagesResponse.json()).query?.pages || {})[0];
+  const fileTitles = (page?.images || [])
+    .map(item => item.title)
+    .filter(title => /^File:/i.test(title))
+    .filter(title => !imageNameLooksBad(title,category))
+    .slice(0,30);
+
+  if (!fileTitles.length) throw new Error("No alternate image files");
+
+  const infoUrl = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*" +
+    "&prop=imageinfo&iiprop=url|size|mime&iiurlwidth=1600&titles=" +
+    encodeURIComponent(fileTitles.join("|"));
+  const infoResponse = await fetch(infoUrl);
+  if (!infoResponse.ok) throw new Error("Wikipedia image info failed");
+
+  const files = Object.values((await infoResponse.json()).query?.pages || {})
+    .map(file => {
+      const info = file.imageinfo?.[0];
+      if (!info) return null;
+      return {
+        name: file.title || "",
+        url: info.thumburl || info.url,
+        width: info.width || info.thumbwidth,
+        height: info.height || info.thumbheight,
+        mime: info.mime || ""
+      };
+    })
+    .filter(info => imageIsUsable(info,category))
+    .sort((a,b) => scoreImage(b,category) - scoreImage(a,category));
+
+  if (!files.length) throw new Error("No usable alternate image");
+  return files[0];
+}
+
+async function getWikipediaPage(title,options={}) {
+  const category = options.category || "";
+  if (category === "Consoles" && !consoleTitleLooksValid(title)) {
+    throw new Error("Rejected non-hardware console title");
+  }
+
   const url = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&titles=" +
-    encodeURIComponent(title) + "&prop=pageimages|info&inprop=url&pithumbsize=1200";
+    encodeURIComponent(title) + "&prop=pageimages|info&inprop=url&piprop=name|original|thumbnail&pithumbsize=1600";
+
   const response = await fetch(url);
   if (!response.ok) throw new Error("Wikipedia request failed");
+
   const page = Object.values((await response.json()).query?.pages || {})[0];
-  if (!page || page.missing || !page.thumbnail?.source) throw new Error("No Wikipedia image");
-  return {
-    image: page.original?.source || page.thumbnail.source,
-    title,
-    source: "Wikipedia",
-    sourceUrl: page.fullurl || "https://en.wikipedia.org/wiki/" + encodeURIComponent(page.title || title)
+  if (!page || page.missing) throw new Error("Wikipedia page missing");
+
+  const imageInfo = {
+    name: page.pageimage || "",
+    url: page.original?.source || page.thumbnail?.source || "",
+    width: page.original?.width || page.thumbnail?.width || 0,
+    height: page.original?.height || page.thumbnail?.height || 0,
+    mime: ""
   };
+
+  let usable = imageIsUsable(imageInfo,category);
+  let selected = usable ? imageInfo : null;
+
+  if (!selected && page.pageid) {
+    try {
+      selected = await getWikipediaAlternateImage(page.pageid,category);
+      usable = Boolean(selected);
+    } catch (_) {}
+  }
+
+  if (!usable || !selected?.url) throw new Error("No usable Wikipedia image");
+
+  const answerTitle = category === "Consoles" ? canonicalConsoleTitle(page.title || title) : title;
+
+  return {
+    image:selected.url,
+    title:answerTitle,
+    source:"Wikipedia",
+    sourceUrl:page.fullurl || "https://en.wikipedia.org/wiki/" + encodeURIComponent(page.title || title)
+  };
+}
+
+async function getWikipediaSearchCandidates(query,category) {
+  const url = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search" +
+    "&gsrsearch=" + encodeURIComponent(query) +
+    "&gsrnamespace=0&gsrlimit=50&prop=pageimages|info&inprop=url&piprop=name|original|thumbnail&pithumbsize=1600";
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Wikipedia discovery failed");
+
+  const pages = Object.values((await response.json()).query?.pages || {});
+  return pages
+    .filter(page => page.thumbnail?.source || page.original?.source)
+    .filter(page => !/(list of|disambiguation|category:|timeline of|index of)/i.test(page.title || ""))
+    .filter(page => category !== "Consoles" || consoleTitleLooksValid(page.title));
+}
+
+const movieWikiQueries = {
+  All: ["film -intitle:list -intitle:category"],
+  "Sci-Fi": ['incategory:"Science fiction films" -intitle:list'],
+  Horror: ['incategory:"Horror films" -intitle:list'],
+  Fantasy: ['incategory:"Fantasy films" -intitle:list'],
+  Animation: ['incategory:"Animated films" -intitle:list'],
+  Action: ['incategory:"Action films" -intitle:list'],
+  Comedy: ['incategory:"Comedy films" -intitle:list'],
+  Drama: ['incategory:"Drama films" -intitle:list']
+};
+
+const wikiDiscoveryQueries = {
+  Consoles: ['incategory:"Video game consoles" -intitle:list -intitle:category'],
+  Characters: ['incategory:"Fictional characters" -intitle:list -intitle:category'],
+  People: ['actor OR actress OR director OR "game designer" -intitle:list -intitle:category'],
+  Places: ['"fictional location" OR landmark OR city -intitle:list -intitle:category'],
+  Objects: ['incategory:"Fictional objects" -intitle:list -intitle:category'],
+  Franchises: ['"media franchise" -intitle:list -intitle:category'],
+  Games: ['"video game" -intitle:list -intitle:category'],
+  Movies: movieWikiQueries.All
+};
+
+async function getWikipediaDiscovery(sourceCategory,subcategory="All") {
+  const queries = sourceCategory === "Movies"
+    ? (movieWikiQueries[subcategory] || movieWikiQueries.All)
+    : (wikiDiscoveryQueries[sourceCategory] || [sourceCategory]);
+
+  for (let attempt=0; attempt<10; attempt++) {
+    const query = queries[Math.floor(Math.random() * queries.length)];
+    const pages = await getWikipediaSearchCandidates(query,sourceCategory);
+    if (!pages.length) continue;
+
+    const shuffled = [...pages].sort(() => Math.random() - 0.5);
+    for (const page of shuffled.slice(0,12)) {
+      const answerTitle = sourceCategory === "Consoles"
+        ? canonicalConsoleTitle(page.title)
+        : page.title;
+      try {
+        const subject = await getWikipediaPage(answerTitle,{category:sourceCategory});
+        if (sourceCategory === "Consoles" && !consoleTitleLooksValid(subject.title)) continue;
+        return subject;
+      } catch (_) {}
+    }
+  }
+
+  throw new Error("No Wikipedia candidate");
 }
 
 async function getAniListImage(title) {
@@ -327,234 +569,99 @@ async function getAniListRandomImage() {
   return {image:item.coverImage.extraLarge,title:item.title.english||item.title.romaji,source:"AniList",sourceUrl:"https://anilist.co/anime/"+item.id};
 }
 
-async function getTVMazeRandomImage() {
-  const page=Math.floor(Math.random()*120);
-  const response=await fetch("https://api.tvmaze.com/shows?page="+page);
-  if(!response.ok) throw new Error("TVMaze discovery failed");
-  const list=(await response.json()).filter(x=>x.image?.original);
-  const item=list[Math.floor(Math.random()*list.length)];
-  if(!item) throw new Error("No TVMaze candidate");
-  return {image:item.image.original,title:item.name,source:"TVMaze",sourceUrl:item.url};
-}
+const tvGenreMap = {
+  All:null, Drama:"Drama", Comedy:"Comedy", Crime:"Crime", "Sci-Fi":"Science-Fiction",
+  Horror:"Horror", Animation:"Animation", Action:"Action", Fantasy:"Fantasy",
+  Mystery:"Mystery", Thriller:"Thriller"
+};
 
-async function getWikipediaDiscovery(sourceCategory) {
-  const queries={
-    Consoles:"intitle:console -intitle:category -intitle:list",
-    Characters:""fictional character" -intitle:list -intitle:category",
-    People:""actor" OR "actress" OR "director" -intitle:list -intitle:category",
-    Places:""fictional place" OR "city" -intitle:list -intitle:category",
-    Objects:""fictional object" OR "weapon" -intitle:list -intitle:category",
-    Franchises:""media franchise" -intitle:list -intitle:category",
-    Games:""video game" -intitle:list -intitle:category",
-    Movies:""film" -intitle:list -intitle:category"
-  };
-  const q=queries[sourceCategory] || sourceCategory;
-  const url="https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrsearch="+encodeURIComponent(q)+"&gsrnamespace=0&gsrlimit=20&prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=1200";
-  const response=await fetch(url);
-  if(!response.ok) throw new Error("Wikipedia discovery failed");
-  const pages=Object.values((await response.json()).query?.pages||{}).filter(p=>p.thumbnail?.source);
-  const filtered=pages.filter(p=>!/(list of|disambiguation|category:|anime influenced animation)/i.test(p.title));
-  const pool=filtered.length?filtered:pages;
-  const page=pool[Math.floor(Math.random()*pool.length)];
-  if(!page) throw new Error("No Wikipedia candidate");
-  return {image:page.thumbnail.source,title:page.title,source:"Wikipedia",sourceUrl:page.fullurl||"https://en.wikipedia.org/wiki/"+encodeURIComponent(page.title)};
-}
+async function getTVMazeRandomImage(subcategory="All") {
+  const wantedGenre = tvGenreMap[subcategory] || null;
 
-async function getSubjectImage(title,sourceCategory) {
-  const sourceMap = {
-    Anime:[getAniListImage,getWikipediaPage],
-    TV:[getTVMazeImage,getWikipediaPage],
+  for (let attempt=0; attempt<10; attempt++) {
+    const page=Math.floor(Math.random()*120);
+    const response=await fetch("https://api.tvmaze.com/shows?page="+page);
+    if(!response.ok) continue;
+
+    const list=(await response.json())
+      .filter(show => show.image?.original)
+      .filter(show => !wantedGenre || (show.genres || []).includes(wantedGenre));
+
+    if (!list.length) continue;
+
+    const item=list[Math.floor(Math.random()*list.length)];
+    return {
+      image:item.image.original,
+      title:item.name,
+      source:"TVMaze",
+      sourceUrl:item.url
+    };
+  }
+
+  throw new Error("No TVMaze candidate");
+}
+async function getSubjectImage(title,sourceCategory,subcategory="All") {
+  const sources = {
+    Anime:[getAniListImage],
+    TV:[getTVMazeImage],
     Movies:[getTMDBImage,getWikipediaPage],
     Games:[getRAWGImage,getWikipediaPage],
-    Consoles:[getWikipediaPage],
-    Characters:[getWikipediaPage],
-    People:[getWikipediaPage],
-    Places:[getWikipediaPage],
-    Objects:[getWikipediaPage],
-    Franchises:[getWikipediaPage]
+    Consoles:[title => getWikipediaPage(title,{category:"Consoles"})],
+    Characters:[title => getWikipediaPage(title,{category:"Characters"})],
+    People:[title => getWikipediaPage(title,{category:"People"})],
+    Places:[title => getWikipediaPage(title,{category:"Places"})],
+    Objects:[title => getWikipediaPage(title,{category:"Objects"})],
+    Franchises:[title => getWikipediaPage(title,{category:"Franchises"})]
   };
 
-  for (const source of (sourceMap[sourceCategory] || [getWikipediaPage])) {
+  for (const source of (sources[sourceCategory] || [title => getWikipediaPage(title,{category:sourceCategory})])) {
     try {
       const subject = await source(title);
       await loadImage(subject.image);
       return subject;
     } catch (_) {}
   }
+
   throw new Error("No image source worked");
 }
-
 async function chooseSubject(snapshot) {
   const pool=snapshot.pool||[];
-  let available=pool.filter(title=>!used.has(normalize(title)));
+  const sourceCategory=snapshot.sourceCategory;
+  const subcategory=snapshot.subcategory || "All";
+  const available=pool.filter(title=>!used.has(normalize(title)));
 
   for(const title of [...available].sort(()=>Math.random()-.5)){
     try{
-      const subject=await getSubjectImage(title,snapshot.sourceCategory);
-      used.add(normalize(title));
-      return subject;
-    }catch(_){}
-  }
-
-  // The curated pool is only the seed. After it is consumed, pull fresh subjects
-  // from the category's native database instead of looping the same 20 items.
-  for(let attempt=0;attempt<12;attempt++){
-    try{
-      let subject;
-      if(snapshot.sourceCategory==="Anime") subject=await getAniListRandomImage();
-      else if(snapshot.sourceCategory==="TV") subject=await getTVMazeRandomImage();
-      else subject=await getWikipediaDiscovery(snapshot.sourceCategory);
-      if(subject?.title && !used.has(normalize(subject.title))){
-        used.add(normalize(subject.title));
+      const subject=await getSubjectImage(title,sourceCategory,subcategory);
+      const key=normalize(subject.title || title);
+      if(!used.has(key)){
+        used.add(key);
         return subject;
       }
-    }catch(_){}
+    }catch(_) {}
   }
+
+  // Curated pools are seeds, not the limit. Native APIs/search are used after
+  // the seed pool is exhausted, with the active movie/TV genre preserved.
+  for(let attempt=0;attempt<18;attempt++){
+    try{
+      let subject;
+      if(sourceCategory==="Anime"){
+        subject=await getAniListRandomImage();
+      }else if(sourceCategory==="TV"){
+        subject=await getTVMazeRandomImage(subcategory);
+      }else{
+        subject=await getWikipediaDiscovery(sourceCategory,subcategory);
+      }
+
+      const key=normalize(subject?.title || "");
+      if(subject?.title && key && !used.has(key)){
+        used.add(key);
+        return subject;
+      }
+    }catch(_) {}
+  }
+
   throw new Error("Couldn't find a usable subject");
 }
 
-async function nextRound() {
-  if (!current) return;
-  const token = gameToken;
-  const snapshot = {
-    pool:[...(current.pool || [])],
-    sourceCategory:current.sourceCategory
-  };
-
-  busy = true;
-  roundLocked = true;
-  current.subject = null;
-  round++;
-
-  $("#roundLabel").textContent = "round " + round;
-  $("#answer").value = "";
-  $("#feedback").textContent = "";
-  $("#feedback").className = "feedback";
-  $("#lastPoints").textContent = "0";
-  $("#questionImage").hidden = true;
-  $("#questionImage").removeAttribute("src");
-  $("#sourceCredit").hidden = true;
-  $("#imageWrap .loading").textContent = "finding an image…";
-
-  try {
-    const subject = await chooseSubject(snapshot);
-    if (!current || token !== gameToken) return;
-
-    current.subject = subject;
-    $("#questionImage").src = subject.image;
-    $("#questionImage").hidden = false;
-    $("#imageWrap .loading").textContent = "";
-    $("#sourceCredit").href = subject.sourceUrl || "#";
-    $("#sourceCredit").textContent = "image source: " + subject.source;
-    $("#sourceCredit").hidden = !subject.source;
-  } catch (_) {
-    if (token !== gameToken) return;
-    $("#imageWrap .loading").textContent = "couldn't find an image — try another category";
-  }
-
-  if (token !== gameToken || !current) return;
-  busy = false;
-  roundLocked = !current.subject;
-  if (current.subject) $("#answer").focus();
-}
-
-function startCategory(name,pool,sourceCategory) {
-  clearTimeout(transitionTimer);
-  gameToken++;
-  busy=true;
-  roundLocked=true;
-  current = {name,pool:pool || [],sourceCategory:sourceCategory || name,subject:null};
-  round = 0;
-  used.clear();
-  $("#categoryLabel").textContent = name.toUpperCase();
-  $("#home").classList.remove("active");
-  $("#game").classList.add("active");
-  nextRound();
-}
-
-function scheduleNext(delay) {
-  clearTimeout(transitionTimer);
-  roundLocked = true;
-  transitionTimer = setTimeout(() => {
-    transitionTimer = null;
-    nextRound();
-  },delay);
-}
-
-function finish(points,message,good) {
-  score += points;
-  $("#score").textContent = score;
-  $("#lastPoints").textContent = points;
-  $("#feedback").innerHTML = message;
-  $("#feedback").className = "feedback " + (good ? "good" : "bad");
-}
-
-$("#questionImage").addEventListener("error",() => {
-  if (busy || !current?.subject || roundLocked) return;
-  used.delete(normalize(current.subject.title));
-  current.subject = null;
-  nextRound();
-});
-
-$("#answerForm").addEventListener("submit",event => {
-  event.preventDefault();
-  if (!current?.subject || busy || roundLocked) return;
-  const guess = $("#answer").value.trim();
-  if (!guess) return;
-
-  if (answerMatches(guess,current.subject.title)) {
-    streak++;
-    const points = 100 + Math.min(streak - 1,10) * 10;
-    $("#streak").textContent = streak;
-    finish(points,"correct — <strong>" + current.subject.title + "</strong>",true);
-    scheduleNext(900);
-  } else {
-    streak = 0;
-    $("#streak").textContent = "0";
-    finish(0,"not quite. try again, skip, or reveal.",false);
-  }
-});
-
-$("#skip").onclick = () => {
-  if (!current?.subject || busy || roundLocked) return;
-  streak = 0;
-  $("#streak").textContent = "0";
-  finish(0,"skipped — <strong>" + current.subject.title + "</strong>",false);
-  scheduleNext(700);
-};
-
-$("#reveal").onclick = () => {
-  if (!current?.subject || busy || roundLocked) return;
-  streak = 0;
-  $("#streak").textContent = "0";
-  finish(0,"the answer was <strong>" + current.subject.title + "</strong>",false);
-  scheduleNext(1000);
-};
-
-$("#homeBrand").onclick = event => { event.preventDefault(); $("#backHome").click(); };
-
-$("#backHome").onclick = () => {
-  clearTimeout(transitionTimer);
-  gameToken++;
-  transitionTimer = null;
-  busy = false;
-  roundLocked = false;
-  current = null;
-  $("#game").classList.remove("active");
-  $("#home").classList.add("active");
-};
-
-$("#randomCategory").onclick = () => {
-  const modes = [];
-  Object.entries(movieSubcategories).forEach(([name,pool]) => modes.push({label:"Movies — " + name,pool,source:"Movies"}));
-  Object.entries(tvSubcategories).forEach(([name,pool]) => modes.push({label:"TV — " + name,pool,source:"TV"}));
-  Object.keys(categories).filter(name => name !== "Movies" && name !== "TV")
-    .forEach(name => modes.push({label:name,pool:categories[name],source:name}));
-  const mode = modes[Math.floor(Math.random() * modes.length)];
-  startCategory(mode.label,mode.pool,mode.source);
-};
-
-renderCategories();
-
-
-["contextmenu","dragstart"].forEach(type=>$("#questionImage").addEventListener(type,e=>e.preventDefault()));
