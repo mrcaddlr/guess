@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0d0d12">
   <meta name="description" content="guess — a fast image guessing game for movies, TV, anime, games, characters, consoles, and more.">
   <title>guess — image guessing game</title>
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
   <script type="module">
     try {
       const { LiquidGlass } = await import("https://cdn.jsdelivr.net/npm/@ybouane/liquidglass@1.0.3/dist/index.js");
@@ -20,7 +20,7 @@
 <body>
   <div id="liquidRoot">
     <div class="liquid-bg" aria-hidden="true"></div>
-    <main class="app liquid-glass-surface">
+    <main class="app">
     <header class="topbar">
       <a id="homeBrand" class="brand" href="#home" aria-label="guess home">guess</a>
       <div class="stats" aria-label="Game score">
@@ -75,6 +75,7 @@
       </div>
     </section>
     </main>
+    <div id="glassOverlay" class="glass-overlay" aria-hidden="true"></div>
   </div>
   <script src="vision.js?v=2"></script>
   <script src="app.js?v=12"></script>
