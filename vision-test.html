@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>guess — vision test</title>
+  <link rel="stylesheet" href="style.css?v=7">
+</head>
+<body class="vision-test-page">
+  <main class="vision-test">
+    <header>
+      <p class="eyebrow">GUESS VISION TEST</p>
+      <h1>test the masking brain.</h1>
+      <p>load a console image, enter the expected answer, and inspect exactly why the detector masked, rejected, or left it alone. nothing is uploaded by this page.</p>
+    </header>
+
+    <section class="vision-test-controls">
+      <label>
+        expected console
+        <input id="visionSubject" value="Nintendo Switch" spellcheck="false">
+      </label>
+      <label>
+        image
+        <input id="visionFile" type="file" accept="image/*">
+      </label>
+      <button id="visionRun" class="ghost" type="button">analyze</button>
+    </section>
+
+    <section class="vision-test-grid">
+      <figure>
+        <figcaption>original</figcaption>
+        <img id="visionOriginal" alt="Original test image">
+      </figure>
+      <figure>
+        <figcaption>processed</figcaption>
+        <img id="visionProcessed" alt="Processed test image">
+      </figure>
+    </section>
+
+    <pre id="visionReport">choose an image to begin.</pre>
+  </main>
+
+  <script src="vision.js?v=1"></script>
+  <script>
+    const file = document.querySelector("#visionFile");
+    const subject = document.querySelector("#visionSubject");
+    const run = document.querySelector("#visionRun");
+    const original = document.querySelector("#visionOriginal");
+    const processed = document.querySelector("#visionProcessed");
+    const report = document.querySelector("#visionReport");
+    let selectedUrl = "";
+
+    file.addEventListener("change", () => {
+      const selected = file.files?.[0];
+      if (!selected) return;
+      if (selectedUrl) URL.revokeObjectURL(selectedUrl);
+      selectedUrl = URL.createObjectURL(selected);
+      original.src = selectedUrl;
+      processed.removeAttribute("src");
+      report.textContent = "ready.";
+    });
+
+    run.addEventListener("click", async () => {
+      if (!selectedUrl) {
+        report.textContent = "choose an image first.";
+        return;
+      }
+
+      run.disabled = true;
+      report.textContent = "analyzing…";
+
+      try {
+        const image = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = selectedUrl;
+        });
+
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, 1280 / Math.max(1, image.naturalWidth));
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        const fakeSubject = {
+          title: subject.value.trim(),
+          category: "Consoles",
+          image: selectedUrl
+        };
+
+        const result = await window.GuessVision.analyzeConsole(fakeSubject, canvas);
+        report.textContent = JSON.stringify(result.report, null, 2);
+
+        if (result.kind === "masked") {
+          processed.src = result.dataUrl;
+        } else {
+          processed.src = selectedUrl;
+        }
+      } catch (error) {
+        report.textContent = "error: " + String(error?.stack || error);
+      } finally {
+        run.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
