@@ -164,18 +164,55 @@ function generatedAliases(title) {
   return [...out];
 }
 
-function levenshtein(a,b) {
-  const row = Array.from({length:b.length + 1},(_,i) => i);
-  for(let i=1;i<=a.length;i++){
-    let diagonal=row[0];
-    row[0]=i;
-    for(let j=1;j<=b.length;j++){
-      const above=row[j];
-      row[j]=a[i-1]===b[j-1] ? diagonal : Math.min(diagonal+1,row[j]+1,row[j-1]+1);
-      diagonal=above;
-    }
+function damerauLevenshtein(a,b) {
+  const da = new Map();
+  const maxDist = a.length + b.length;
+  const matrix = Array.from({length:a.length + 2},()=>Array(b.length + 2).fill(0));
+
+  matrix[0][0] = maxDist;
+  for(let i=0;i<=a.length;i++) {
+    matrix[i+1][0] = maxDist;
+    matrix[i+1][1] = i;
   }
-  return row[b.length];
+  for(let j=0;j<=b.length;j++) {
+    matrix[0][j+1] = maxDist;
+    matrix[1][j+1] = j;
+  }
+
+  for(let i=1;i<=a.length;i++) {
+    let db = 0;
+    for(let j=1;j<=b.length;j++) {
+      const i1 = da.get(b[j-1]) || 0;
+      const j1 = db;
+      let cost = 1;
+      if(a[i-1] === b[j-1]) {
+        cost = 0;
+        db = j;
+      }
+
+      matrix[i+1][j+1] = Math.min(
+        matrix[i][j] + cost,
+        matrix[i+1][j] + 1,
+        matrix[i][j+1] + 1,
+        matrix[i1][j1] + (i-i1-1) + 1 + (j-j1-1)
+      );
+    }
+    da.set(a[i-1],i);
+  }
+
+  return matrix[a.length+1][b.length+1];
+}
+
+function wordTypoMatch(input,title) {
+  const aWords=normalize(input).split(" ").filter(Boolean);
+  const tWords=normalize(title).split(" ").filter(Boolean);
+  if(aWords.length!==tWords.length) return false;
+
+  return aWords.every((word,index)=>{
+    const target=tWords[index];
+    const maxDistance = word.length >= 8 ? 2 : word.length >= 5 ? 1 : 0;
+    return damerauLevenshtein(word,target) <= maxDistance;
+  });
 }
 
 function classifyAnswer(input,title) {
@@ -191,9 +228,15 @@ function classifyAnswer(input,title) {
 
   if([...aliases].some(alias=>alias===a)) return {correct:true,type:"alias"};
 
+  // Dynamic typo detection: handles missing/extra letters, transposed letters,
+  // and small per-word mistakes without accepting partial words.
+  if(wordTypoMatch(a,t)) {
+    return {correct:true,type:"typo",correctTitle:title};
+  }
+
   if(a.length>=5 && t.length>=5){
-    const distance=levenshtein(a,t);
-    const limit=Math.max(1,Math.floor(Math.min(a.length,t.length)/6));
+    const distance=damerauLevenshtein(a,t);
+    const limit = t.length >= 14 ? 2 : t.length >= 8 ? 1 : 0;
     if(distance<=limit) return {correct:true,type:"typo",correctTitle:title};
   }
 
@@ -203,6 +246,179 @@ function classifyAnswer(input,title) {
 function answerMatches(input,title) {
   return classifyAnswer(input,title).correct;
 }
+
+function getConsoleTextMaskCandidates(canvas) {
+  const width=canvas.width;
+  const height=canvas.height;
+  const sampleWidth=Math.min(640,width);
+  const sampleHeight=Math.max(1,Math.round(height*(sampleWidth/width)));
+  const scan=document.createElement("canvas");
+  scan.width=sampleWidth;
+  scan.height=sampleHeight;
+
+  const sctx=scan.getContext("2d",{willReadFrequently:true});
+  sctx.drawImage(canvas,0,0,sampleWidth,sampleHeight);
+  const data=sctx.getImageData(0,0,sampleWidth,sampleHeight).data;
+
+  const gray=new Float32Array(sampleWidth*sampleHeight);
+  for(let i=0,p=0;p<gray.length;p++,i+=4) {
+    gray[p]=0.299*data[i]+0.587*data[i+1]+0.114*data[i+2];
+  }
+
+  // High local contrast + edge density approximates printed wordmark/text.
+  const edge=new Uint8Array(gray.length);
+  for(let y=1;y<sampleHeight-1;y++) {
+    for(let x=1;x<sampleWidth-1;x++) {
+      const p=y*sampleWidth+x;
+      const gx=Math.abs(gray[p+1]-gray[p-1]);
+      const gy=Math.abs(gray[p+sampleWidth]-gray[p-sampleWidth]);
+      edge[p]=(gx+gy>95) ? 1 : 0;
+    }
+  }
+
+  // Horizontal/vertical projection finds compact bands of lettering.
+  const xScore=new Float32Array(sampleWidth);
+  const yScore=new Float32Array(sampleHeight);
+  for(let y=1;y<sampleHeight-1;y++) {
+    let row=0;
+    for(let x=1;x<sampleWidth-1;x++) row+=edge[y*sampleWidth+x];
+    yScore[y]=row/sampleWidth;
+  }
+  for(let x=1;x<sampleWidth-1;x++) {
+    let col=0;
+    for(let y=1;y<sampleHeight-1;y++) col+=edge[y*sampleWidth+x];
+    xScore[x]=col/sampleHeight;
+  }
+
+  const boxes=[];
+  const minW=Math.max(20,Math.round(sampleWidth*0.04));
+  const maxW=Math.round(sampleWidth*0.55);
+  const minH=Math.max(6,Math.round(sampleHeight*0.018));
+  const maxH=Math.round(sampleHeight*0.24);
+
+  // Scan overlapping windows. Text/logo bands tend to have strong internal edges
+  // while staying relatively compact.
+  for(let h=Math.round(sampleHeight*0.045);h<=maxH;h=Math.round(h*1.35)) {
+    for(let w=Math.round(sampleWidth*0.08);w<=maxW;w=Math.round(w*1.3)) {
+      const stepX=Math.max(8,Math.round(w*0.32));
+      const stepY=Math.max(5,Math.round(h*0.45));
+      for(let y=0;y+h<=sampleHeight;y+=stepY) {
+        let rowBand=0;
+        for(let yy=y;yy<y+h;yy++) rowBand+=yScore[yy];
+        rowBand/=h;
+
+        for(let x=0;x+w<=sampleWidth;x+=stepX) {
+          const xBand=xScore.subarray(x,Math.min(sampleWidth,x+w));
+          let xAvg=0;
+          for(const v of xBand)xAvg+=v;
+          xAvg/=xBand.length;
+
+          const edgeDensity=(rowBand+xAvg)/2;
+          if(edgeDensity<0.075) continue;
+
+          const normalizedArea=(w*h)/(sampleWidth*sampleHeight);
+          if(normalizedArea<0.0015 || normalizedArea>0.15) continue;
+
+          const centerBonus=1-Math.min(1,Math.abs((x+w/2)/sampleWidth-0.5)*1.4);
+          const yCenter=(y+h/2)/sampleHeight;
+          const verticalBonus=0.7+0.6*(1-Math.min(1,Math.abs(yCenter-0.55)*1.8));
+          const aspect=Math.max(w/h,h/w);
+          if(aspect<1.6 || aspect>18) continue;
+
+          boxes.push({
+            x,y,w,h,
+            score:edgeDensity*100 + centerBonus*16 + verticalBonus*12
+          });
+        }
+      }
+    }
+  }
+
+  boxes.sort((a,b)=>b.score-a.score);
+
+  const chosen=[];
+  for(const box of boxes) {
+    if(chosen.some(other=>{
+      const ax=Math.max(box.x,other.x);
+      const ay=Math.max(box.y,other.y);
+      const bx=Math.min(box.x+box.w,other.x+other.w);
+      const by=Math.min(box.y+box.h,other.y+other.h);
+      return Math.max(0,bx-ax)*Math.max(0,by-ay) > Math.min(box.w*box.h,other.w*other.h)*0.35;
+    })) continue;
+    chosen.push(box);
+    if(chosen.length>=3) break;
+  }
+
+  return chosen.map(box=>({
+    x:Math.round(box.x/sampleWidth*canvas.width),
+    y:Math.round(box.y/sampleHeight*canvas.height),
+    w:Math.round(box.w/sampleWidth*canvas.width),
+    h:Math.round(box.h/sampleHeight*canvas.height)
+  }));
+}
+
+async function prepareConsoleImage(subject) {
+  if(subject?.category!=="Consoles") return subject?.image;
+
+  const image=await new Promise((resolve,reject)=>{
+    const element=new Image();
+    element.crossOrigin="anonymous";
+    element.onload=()=>resolve(element);
+    element.onerror=()=>reject(new Error("Console image could not be read"));
+    element.src=subject.image;
+  });
+
+  const maxW=1280;
+  const scale=Math.min(1,maxW/image.naturalWidth);
+  const canvas=document.createElement("canvas");
+  canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+  canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+  const ctx=canvas.getContext("2d");
+  ctx.drawImage(image,0,0,canvas.width,canvas.height);
+
+  let candidates=[];
+  try { candidates=getConsoleTextMaskCandidates(canvas); } catch(_) {}
+
+  if(!candidates.length) {
+    // Still veil the most common central branding zone very lightly, so a visible
+    // wordmark cannot dominate the game even if image analysis finds nothing.
+    candidates=[{
+      x:Math.round(canvas.width*0.34),
+      y:Math.round(canvas.height*0.40),
+      w:Math.round(canvas.width*0.32),
+      h:Math.round(canvas.height*0.14)
+    }];
+  }
+
+  for(const box of candidates) {
+    const padX=Math.round(box.w*0.16);
+    const padY=Math.round(box.h*0.35);
+    const x=Math.max(0,box.x-padX);
+    const y=Math.max(0,box.y-padY);
+    const w=Math.min(canvas.width-x,box.w+padX*2);
+    const h=Math.min(canvas.height-y,box.h+padY*2);
+
+    const smallW=Math.max(8,Math.round(w/16));
+    const smallH=Math.max(8,Math.round(h/16));
+    const temp=document.createElement("canvas");
+    temp.width=smallW;
+    temp.height=smallH;
+    const tctx=temp.getContext("2d");
+    tctx.imageSmoothingEnabled=true;
+    tctx.drawImage(canvas,x,y,w,h,0,0,smallW,smallH);
+
+    ctx.save();
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(temp,0,0,smallW,smallH,x,y,w,h);
+    ctx.fillStyle="rgba(0,0,0,.58)";
+    ctx.fillRect(x,y,w,h);
+    ctx.restore();
+  }
+
+  return canvas.toDataURL("image/jpeg",0.9);
+}
+
+
 function addDropdown(name,subcategories) {
   const button = document.createElement("button");
   button.className = "category dropdown-toggle";
@@ -498,7 +714,8 @@ async function getAniListImage(title) {
     image:selected.coverImage.extraLarge,
     title,
     source:"AniList",
-    sourceUrl:"https://anilist.co/anime/" + selected.id
+    sourceUrl:"https://anilist.co/anime/" + selected.id,
+    category:"Anime"
   };
 }
 
@@ -516,7 +733,7 @@ async function getTVMazeImage(title) {
     return Number(bUS) - Number(aUS);
   });
   const show = candidates[0];
-  return {image:show.image.original,title,source:"TVMaze",sourceUrl:"https://www.tvmaze.com/shows/" + show.id};
+  return {image:show.image.original,title,source:"TVMaze",sourceUrl:"https://www.tvmaze.com/shows/" + show.id,category:"TV"};
 }
 
 async function getTMDBImage(title) {
@@ -534,7 +751,8 @@ async function getTMDBImage(title) {
     image:"https://image.tmdb.org/t/p/w1280" + (item.poster_path || item.backdrop_path),
     title,
     source:"TMDB",
-    sourceUrl:"https://www.themoviedb.org/movie/" + item.id
+    sourceUrl:"https://www.themoviedb.org/movie/" + item.id,
+    category:"Movies"
   };
 }
 
@@ -549,7 +767,7 @@ async function getRAWGImage(title) {
   const item = (data.results || []).find(x => normalize(x.name) === wanted && x.background_image) ||
     (data.results || []).find(x => x.background_image);
   if (!item) throw new Error("No RAWG image");
-  return {image:item.background_image,title,source:"RAWG",sourceUrl:"https://rawg.io/games/" + (item.slug || item.id)};
+  return {image:item.background_image,title,source:"RAWG",sourceUrl:"https://rawg.io/games/" + (item.slug || item.id),category:"Games"};
 }
 
 function loadImage(url) {
@@ -569,7 +787,7 @@ async function getAniListRandomImage() {
   const list=(await response.json()).data?.Page?.media||[];
   const item=list.filter(x=>x.coverImage?.extraLarge)[Math.floor(Math.random()*list.filter(x=>x.coverImage?.extraLarge).length)];
   if(!item) throw new Error("No AniList candidate");
-  return {image:item.coverImage.extraLarge,title:item.title.english||item.title.romaji,source:"AniList",sourceUrl:"https://anilist.co/anime/"+item.id};
+  return {image:item.coverImage.extraLarge,title:item.title.english||item.title.romaji,source:"AniList",sourceUrl:"https://anilist.co/anime/"+item.id,category:"Anime"};
 }
 
 const tvGenreMap = {
@@ -597,7 +815,8 @@ async function getTVMazeRandomImage(subcategory="All") {
       image:item.image.original,
       title:item.name,
       source:"TVMaze",
-      sourceUrl:item.url
+      sourceUrl:item.url,
+      category:"TV"
     };
   }
 
@@ -620,6 +839,7 @@ async function getSubjectImage(title,sourceCategory,subcategory="All") {
   for (const source of (sources[sourceCategory] || [title => getWikipediaPage(title,{category:sourceCategory})])) {
     try {
       const subject = await source(title);
+      subject.category=sourceCategory;
       await loadImage(subject.image);
       return subject;
     } catch (_) {}
@@ -697,7 +917,11 @@ async function nextRound() {
     if (!current || token !== gameToken) return;
 
     current.subject = subject;
-    $("#questionImage").src = subject.image;
+    const playableImage = subject.category === "Consoles"
+      ? await prepareConsoleImage(subject).catch(() => subject.image)
+      : subject.image;
+    if (!current || token !== gameToken) return;
+    $("#questionImage").src = playableImage;
     $("#questionImage").alt = "Mystery image";
     $("#questionImage").hidden = false;
     $("#imageWrap .loading").textContent = "";
