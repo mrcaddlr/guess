@@ -120,50 +120,75 @@ function similarity(a, b) {
   return hit / Math.max(aa.size, bb.size);
 }
 
-async function getExactPage(title) {
+async function getWikipediaPage(title) {
   const url = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*"
     + "&redirects=1&titles=" + encodeURIComponent(title)
     + "&prop=pageimages|info&inprop=url&pithumbsize=1200";
-
   const r = await fetch(url);
   if (!r.ok) throw new Error("Wikipedia request failed");
-
   const d = await r.json();
   const page = Object.values(d.query?.pages || {})[0];
+  if (!page || page.missing || !page.thumbnail?.source) throw new Error("No Wikipedia image");
+  return { image: page.original?.source || page.thumbnail.source, title: page.title || title, source: "Wikipedia", pageid: String(page.pageid) };
+}
 
-  if (!page || page.missing || !page.thumbnail?.source) {
-    throw new Error("No usable image for " + title);
+async function searchCommons(title) {
+  const url = "https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*"
+    + "&generator=search&gsrnamespace=6&gsrsearch=" + encodeURIComponent('"' + title + '"')
+    + "&gsrlimit=12&prop=imageinfo&iiprop=url|mime|size&iiurlwidth=1200";
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("Commons request failed");
+  const d = await r.json();
+  const pages = Object.values(d.query?.pages || {});
+  const good = pages.filter(p =>
+    p.imageinfo?.[0]?.thumburl &&
+    /^image\/(jpeg|png|webp)$/i.test(p.imageinfo[0].mime || "") &&
+    !/logo|icon|flag|stamp|map|poster|collage|sprite|symbol/i.test(p.title || "")
+  );
+  if (!good.length) throw new Error("No Commons image");
+  const p = good[Math.floor(Math.random() * good.length)];
+  return { image: p.imageinfo[0].thumburl, title, source: "Wikimedia Commons", pageid: String(p.pageid) };
+}
+
+async function searchOpenverse(title) {
+  const url = "https://api.openverse.org/v1/images/?q=" + encodeURIComponent('"' + title + '"')
+    + "&page_size=20&mature=false";
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("Openverse request failed");
+  const d = await r.json();
+  const results = (d.results || []).filter(x =>
+    (x.thumbnail || x.url) &&
+    !x.mature &&
+    !/logo|icon|flag|stamp|map|poster|collage|sprite|symbol/i.test((x.title || "") + " " + (x.tags || []).join(" "))
+  );
+  if (!results.length) throw new Error("No Openverse image");
+  const x = results[Math.floor(Math.random() * Math.min(results.length, 10))];
+  return { image: x.thumbnail || x.url, title, source: "Openverse", pageid: "openverse:" + x.id };
+}
+
+async function getSubjectImage(title) {
+  const sources = [() => searchCommons(title), () => searchOpenverse(title), () => getWikipediaPage(title)]
+    .sort(() => Math.random() - 0.5);
+  for (const source of sources) {
+    try { return await source(); } catch (_) {}
   }
-
-  return {
-    image: page.original?.source || page.thumbnail.source,
-    title: page.title || title,
-    pageid: String(page.pageid)
-  };
+  throw new Error("No image source worked");
 }
 
 async function chooseSubject() {
   const pool = categories[current.name];
   const available = pool.filter(title => !used.has(normalize(title)));
-
-  if (!available.length) {
-    used.clear();
-  }
-
-  // Try several specific subjects until one has a real Wikipedia image.
-  const shuffled = [...(available.length ? available : pool)]
-    .sort(() => Math.random() - 0.5);
-
+  if (!available.length) used.clear();
+  const shuffled = [...(available.length ? available : pool)].sort(() => Math.random() - 0.5);
   for (const title of shuffled.slice(0, 10)) {
+    const key = normalize(title);
+    if (used.has(key)) continue;
     try {
-      const subject = await getExactPage(title);
-      const key = normalize(title);
-      if (used.has(key)) continue;
+      const subject = await getSubjectImage(title);
       used.add(key);
       return subject;
     } catch (_) {}
   }
-
   throw new Error("Couldn't find a usable subject");
 }
 
