@@ -699,15 +699,30 @@ async function chooseSubject(snapshot) {
   const subcategory=snapshot.subcategory || "All";
   const available=pool.filter(title=>!used.has(normalize(title)));
 
-  for(const title of [...available].sort(()=>Math.random()-.5)){
-    try{
-      const subject=await getSubjectImage(title,sourceCategory,subcategory);
-      const key=normalize(subject.title || title);
-      if(!used.has(key)){
+  const shuffledTitles=[...available].sort(()=>Math.random()-.5);
+  const batchSize=sourceCategory==="Consoles" ? 3 : 3;
+
+  // Try a few independent source lookups in parallel instead of blocking on
+  // one failed/slow API or image before trying the next subject.
+  for(let i=0;i<shuffledTitles.length;i+=batchSize){
+    const batch=shuffledTitles.slice(i,i+batchSize);
+    const results=await Promise.allSettled(
+      batch.map(title=>getSubjectImage(title,sourceCategory,subcategory))
+    );
+
+    const successes=results
+      .map((result,index)=>result.status==="fulfilled" ? result.value : null)
+      .filter(Boolean)
+      .filter(subject=>!used.has(normalize(subject.title || "")));
+
+    if(successes.length){
+      const subject=successes[Math.floor(Math.random()*successes.length)];
+      const key=normalize(subject.title || "");
+      if(key){
         used.add(key);
         return subject;
       }
-    }catch(_) {}
+    }
   }
 
   // Curated pools are seeds, not the limit. Native APIs/search are used after
