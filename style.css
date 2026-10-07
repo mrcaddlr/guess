@@ -366,3 +366,24 @@ button{touch-action:manipulation}
 @media(max-width:760px){
   .vision-test-grid{grid-template-columns:1fr}
 }
+
+/* LiquidGlass compositor safety:
+   the library injects its WebGL canvas as the first child with z-index:-1.
+   Keep that canvas inside the app's stacking context, while explicitly
+   lifting real UI content above it. */
+.app > canvas:first-child{
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+  z-index:0 !important;
+  pointer-events:none !important;
+  border-radius:inherit;
+}
+.app > *:not(canvas){
+  position:relative;
+  z-index:1;
+}
+.app::after{
+  z-index:2;
+}
