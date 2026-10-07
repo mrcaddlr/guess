@@ -899,49 +899,55 @@ async function initLiquidGlass(){
   if(!window.LiquidGlass || liquidGlassInstance) return;
 
   const root=document.querySelector("#liquidRoot");
-  const glass=document.querySelector(".app");
+  const glass=document.querySelector("#glassOverlay");
   if(!root || !glass) return;
 
-  // LiquidGlass captures the scene asynchronously. Never let a renderer
-  // failure or a stuck pre-warm prevent the actual game from working.
+  // IMPORTANT: the glass must be a sibling of the page content.
+  // LiquidGlass rasterises non-glass root children as the scene behind the
+  // shader. Making the entire app the glass causes the renderer to have
+  // nothing useful behind it.
   const timeout=(promise,ms)=>Promise.race([
     promise,
-    new Promise((_,reject)=>setTimeout(()=>reject(new Error("Liquid Glass initialization timed out")),ms))
+    new Promise((_,reject)=>setTimeout(
+      ()=>reject(new Error("Liquid Glass initialization timed out")),
+      ms
+    ))
   ]);
 
   try{
-    // Remove CSS backdrop filtering from the WebGL glass surface. Running a
-    // second browser blur/refraction layer over the renderer makes the result
-    // look opaque or completely wrong on several browsers.
     glass.classList.add("webgl-glass-loading");
 
-    liquidGlassInstance=await timeout(window.LiquidGlass.init({
-      root,
-      glassElements:[glass],
-      defaults:{
-        blurAmount:0.18,
-        refraction:0.42,
-        chromAberration:0.018,
-        edgeHighlight:0.08,
-        specular:0.10,
-        fresnel:0.42,
-        distortion:0,
-        cornerRadius:34,
-        zRadius:18,
-        opacity:0.92,
-        saturation:0.04,
-        tintStrength:0.025,
-        brightness:0.025,
-        shadowOpacity:0.28,
-        shadowSpread:18,
-        shadowOffsetY:8
-      }
-    }),2500);
+    liquidGlassInstance=await timeout(
+      window.LiquidGlass.init({
+        root,
+        glassElements:[glass],
+        defaults:{
+          blurAmount:0.22,
+          refraction:0.38,
+          chromAberration:0.012,
+          edgeHighlight:0.07,
+          specular:0.08,
+          fresnel:0.48,
+          distortion:0,
+          cornerRadius:34,
+          zRadius:20,
+          opacity:0.88,
+          saturation:0.02,
+          tintStrength:0.015,
+          brightness:0.015,
+          shadowOpacity:0.25,
+          shadowSpread:16,
+          shadowOffsetY:7,
+          bevelMode:0
+        }
+      }),
+      2500
+    );
 
     glass.classList.remove("webgl-glass-loading");
     glass.classList.add("webgl-glass-ready");
   }catch(error){
-    console.warn("Liquid Glass failed; reverting to stable CSS glass.",error);
+    console.warn("Liquid Glass failed; using the CSS fallback.",error);
     liquidGlassInstance=null;
     glass.classList.remove("webgl-glass-loading","webgl-glass-ready");
   }
