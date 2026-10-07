@@ -950,57 +950,33 @@ async function initLiquidGlass(){
   try{
     glass.classList.add("webgl-glass-loading");
 
-    const mobile = matchMedia("(max-width: 820px)").matches;
-    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    // Keep the initial WebGL workload deliberately small on phones.
-    // LiquidGlass still uses the same renderer; these values only reduce
-    // the amount of blur/refraction work needed for the first composition.
-    const defaults = mobile ? {
-      blurAmount:0.12,
-      refraction:0.42,
-      chromAberration:0.006,
-      edgeHighlight:0.045,
-      specular:0.035,
-      fresnel:0.32,
-      distortion:0,
-      cornerRadius:27,
-      zRadius:14,
-      opacity:0.94,
-      saturation:0.01,
-      tintStrength:0.006,
-      brightness:0.008,
-      shadowOpacity:0.18,
-      shadowSpread:7,
-      shadowOffsetY:3,
-      bevelMode:0
-    } : {
-      blurAmount:0.28,
-      refraction:0.58,
-      chromAberration:0.01,
-      edgeHighlight:0.06,
-      specular:0.06,
-      fresnel:0.42,
-      distortion:0,
-      cornerRadius:34,
-      zRadius:20,
-      opacity:0.92,
-      saturation:0.02,
-      tintStrength:0.01,
-      brightness:0.01,
-      shadowOpacity:0.30,
-      shadowSpread:12,
-      shadowOffsetY:5,
-      bevelMode:0
-    };
-
+    // Keep the exact same glass configuration on every device.
+    // The speed fix is startup timing, not a visual-quality reduction.
     liquidGlassInstance=await timeout(
       window.LiquidGlass.init({
         root,
         glassElements:[glass],
-        defaults
+        defaults:{
+          blurAmount:0.28,
+          refraction:0.58,
+          chromAberration:0.01,
+          edgeHighlight:0.06,
+          specular:0.06,
+          fresnel:0.42,
+          distortion:0,
+          cornerRadius:34,
+          zRadius:20,
+          opacity:0.92,
+          saturation:0.02,
+          tintStrength:0.01,
+          brightness:0.01,
+          shadowOpacity:0.30,
+          shadowSpread:12,
+          shadowOffsetY:5,
+          bevelMode:0
+        }
       }),
-      mobile ? 8000 : 12000
+      15000
     );
 
     glass.classList.remove("webgl-glass-loading");
@@ -1014,8 +990,20 @@ async function initLiquidGlass(){
 }
 
 renderCategories();
-window.addEventListener("load",()=>initLiquidGlass(),{once:true});
-window.addEventListener("liquidglassready",()=>initLiquidGlass(),{once:true});
+
+const startLiquidGlassEarly=()=>{
+  // DOMContentLoaded is substantially earlier than window.load on mobile.
+  // The LiquidGlass module can then do its own async capture while the page
+  // continues loading instead of making the user wait for every page asset.
+  initLiquidGlass();
+};
+
+if(document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded",startLiquidGlassEarly,{once:true});
+}else{
+  startLiquidGlassEarly();
+}
+window.addEventListener("liquidglassready",initLiquidGlass,{once:true});
 
 ["contextmenu","dragstart"].forEach(type =>
   $("#questionImage").addEventListener(type,event=>event.preventDefault())
