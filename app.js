@@ -111,20 +111,155 @@ function normalize(s) {
 }
 
 const answerAliases = {
-  "playstation vita": ["ps vita", "psvita", "ps v ita", "playstation vita"],
-  "xbox console": ["xbox", "xbox console", "original xbox"],
-  "xbox series x and series s": ["xbox series x", "xbox series s", "xbox series x s"],
+  "the godfather": ["godfather"],
+  "pulp fiction": ["pulpfiction"],
+  "the dark knight": ["dark knight", "tdk"],
+  "the matrix": ["matrix"],
+  "jurassic park": ["jp"],
+  "back to the future": ["bttf"],
+  "the lord of the rings": ["lotr", "lord rings"],
+  "harry potter": ["hp"],
+  "spider man": ["spiderman", "spidey"],
+  "toy story": ["toystory"],
+  "breaking bad": ["bb"],
+  "the office": ["office"],
+  "stranger things": ["st"],
+  "game of thrones": ["got"],
+  "the sopranos": ["sopranos"],
+  "better call saul": ["bcs"],
+  "the boys": ["boys"],
+  "the mandalorian": ["mandalorian", "mando"],
+  "the last of us": ["tlou"],
+  "one piece": ["op"],
   "hunter hunter": ["hunter x hunter", "hxh"],
-  "spy family": ["spy x family", "spy family"],
-  "pokemon": ["pokémon", "pokemon"]
+  "fullmetal alchemist": ["fma", "fmab", "full metal alchemist"],
+  "jojo s bizarre adventure": ["jojo", "jojos", "jjba"],
+  "spy family": ["spy x family"],
+  "neon genesis evangelion": ["nge", "evangelion"],
+  "my hero academia": ["mha", "bnha", "boku no hero"],
+  "one punch man": ["opm"],
+  "attack on titan": ["aot", "snk"],
+  "demon slayer": ["kimetsu no yaiba", "kny"],
+  "jujutsu kaisen": ["jjk"],
+  "chainsaw man": ["csm"],
+  "dragon ball": ["db", "dbz", "dragon ball z"],
+  "pokemon": ["pokémon", "poke mon"],
+  "grand theft auto v": ["gta v", "gta 5", "gtav"],
+  "the legend of zelda breath of the wild": ["botw", "zelda botw", "breath of the wild"],
+  "super mario odyssey": ["mario odyssey"],
+  "red dead redemption 2": ["rdr2", "red dead 2"],
+  "resident evil 4": ["re4"],
+  "the elder scrolls v skyrim": ["skyrim", "tes v skyrim", "elder scrolls skyrim"],
+  "five nights at freddys": ["fnaf"],
+  "playstation 2": ["ps2", "ps 2", "ps2 console"],
+  "playstation 3": ["ps3", "ps 3", "ps3 console"],
+  "playstation 4": ["ps4", "ps 4", "ps4 console"],
+  "playstation 5": ["ps5", "ps 5", "ps5 console"],
+  "playstation vita": ["ps vita", "psv", "psvita", "ps v ita", "ps vita console"],
+  "playstation portable": ["psp", "ps portable"],
+  "xbox console": ["xbox", "original xbox", "xbox 1"],
+  "xbox 360": ["x360", "xbox360"],
+  "xbox one": ["xbone", "xbox1", "xbox one console"],
+  "xbox series x and series s": ["xbox series x", "xbox series s", "xbox series xs", "xbox series x s"],
+  "nintendo entertainment system": ["nes", "nintendo", "famicom"],
+  "super nintendo entertainment system": ["snes", "super nintendo"],
+  "nintendo 64": ["n64"],
+  "nintendo gamecube": ["gamecube", "gc"],
+  "nintendo switch": ["switch"],
+  "game boy": ["gameboy", "gb"],
+  "game boy advance": ["gba"],
+  "nintendo ds": ["nds", "ds"],
+  "nintendo 3ds": ["3ds"],
+  "mario": ["super mario", "mario bros"],
+  "luigi": ["luigi mario"],
+  "link": ["zelda link"],
+  "sonic the hedgehog": ["sonic"],
+  "pac man": ["pacman"],
+  "samus aran": ["samus"],
+  "master chief": ["masterchief", "john 117", "john halo"],
+  "cloud strife": ["cloud", "cloud ff7", "cloud final fantasy"],
+  "darth vader": ["vader"],
+  "batman": ["bruce wayne"],
+  "superman": ["clark kent"],
+  "wonder woman": ["diana prince"],
+  "dwayne johnson": ["the rock", "rock"],
+  "robert downey jr": ["rdj"],
+  "christopher nolan": ["nolan"],
+  "steven spielberg": ["spielberg"],
+  "hayao miyazaki": ["miyazaki"],
+  "hideo kojima": ["kojima"],
+  "shigeru miyamoto": ["miyamoto"],
+  "new york city": ["new york", "nyc"],
+  "tokyo": ["tokyo japan"],
+  "los santos": ["gta los santos"],
+  "mount fuji": ["fuji", "fuji san"],
+  "master sword": ["mastersword"],
+  "portal gun": ["portal device"],
+  "poke ball": ["pokeball", "poké ball", "pokeball"],
+  "infinity gauntlet": ["infinity glove"],
+  "one ring": ["ring of power", "one ring to rule them all"],
+  "lightsaber": ["light saber", "lightsabre"],
+  "buster sword": ["bustersword"],
+  "keyblade": ["key blade"],
+  "triforce": ["tri force"],
+  "chaos emerald": ["chaos emeralds"],
+  "dragon balls": ["dragonball", "dragon balls"],
+  "super mario": ["mario"],
+  "the legend of zelda": ["zelda"],
+  "final fantasy": ["ff"],
+  "resident evil": ["re"],
+  "metal gear": ["mg", "metal gear solid"],
+  "sonic the hedgehog": ["sonic"],
+  "halo": ["halo games"],
+  "grand theft auto": ["gta"],
+  "the elder scrolls": ["tes", "elder scrolls"],
+  "fallout": ["fallout games"],
+  "kingdom hearts": ["kh"],
+  "street fighter": ["sf"],
+  "mortal kombat": ["mk"],
+  "star wars": ["sw"],
+  "dc comics": ["dc"],
+  "the chronicles of narnia": ["narnia"],
+  "house of the dragon": ["hotd"],
+  "the witcher": ["witcher"],
+  "dungeons and dragons": ["dnd", "d&d"],
+  "how to train your dragon": ["httyd"],
+  "pan s labyrinth": ["pans labyrinth"]
 };
+
+function generatedAliases(title) {
+  const n = normalize(title);
+  const out = new Set([n]);
+
+  // Common human shorthand: remove leading "the", punctuation, and console/platform suffixes.
+  out.add(n.replace(/^the /, ""));
+  out.add(n.replace(/\b(the|a|an)\b/g, "").replace(/\s+/g, " ").trim());
+
+  // Initialism, e.g. Grand Theft Auto -> GTA, Attack on Titan -> AOT.
+  const words = n.split(" ").filter(w => !["the","of","and","a","an","to","in","on","v"].includes(w));
+  if (words.length >= 2) out.add(words.map(w => w[0]).join(""));
+
+  // Common number substitutions.
+  out.add(n.replace(/\bv\b/g, "5"));
+  out.add(n.replace(/\biv\b/g, "4"));
+  out.add(n.replace(/\bii\b/g, "2"));
+  out.add(n.replace(/\biii\b/g, "3"));
+
+  return [...out].filter(Boolean);
+}
 
 function answerMatches(input, title) {
   const a = normalize(input);
   const t = normalize(title);
-  if (similarity(a, t) >= .78) return true;
-  const aliases = answerAliases[t] || [];
-  return aliases.some(x => similarity(a, x) >= .78);
+  if (!a) return false;
+  if (a === t || similarity(a, t) >= .78) return true;
+
+  const aliases = new Set([
+    ...generatedAliases(title),
+    ...(answerAliases[t] || [])
+  ].map(normalize));
+
+  return [...aliases].some(alias => a === alias || similarity(a, alias) >= .78);
 }
 
 function similarity(a, b) {
