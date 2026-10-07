@@ -543,8 +543,8 @@ async function getAniListImage(title) {
       .filter(Boolean)
       .some(name => normalize(name) === wanted)
   );
-  const selected = exact || media.find(item => item.coverImage?.extraLarge);
-  if (!selected?.coverImage?.extraLarge) throw new Error("No AniList image");
+  const selected = exact;
+  if (!selected?.coverImage?.extraLarge) throw new Error("No exact AniList match");
   return {
     image:selected.coverImage.extraLarge,
     title,
@@ -560,8 +560,8 @@ async function getTVMazeImage(title) {
   const shows = (await response.json()).map(x => x.show).filter(Boolean);
   const wanted = normalize(title);
   const exact = shows.filter(show => normalize(show.name) === wanted && show.image?.original);
-  const candidates = exact.length ? exact : shows.filter(show => show.image?.original);
-  if (!candidates.length) throw new Error("No TVMaze image");
+  if (!exact.length) throw new Error("No exact TVMaze match");
+  const candidates = exact;
   candidates.sort((a,b) => {
     const aUS = a.network?.country?.code === "US" || a.webChannel?.country?.code === "US";
     const bUS = b.network?.country?.code === "US" || b.webChannel?.country?.code === "US";
@@ -579,9 +579,11 @@ async function getTMDBImage(title) {
   if (!response.ok) throw new Error("TMDB request failed");
   const data = await response.json();
   const wanted = normalize(title);
-  const item = (data.results || []).find(x => normalize(x.title) === wanted && (x.poster_path || x.backdrop_path)) ||
-    (data.results || []).find(x => x.poster_path || x.backdrop_path);
-  if (!item) throw new Error("No TMDB image");
+  const item = (data.results || []).find(x =>
+    normalize(x.title) === wanted &&
+    (x.poster_path || x.backdrop_path)
+  );
+  if (!item) throw new Error("No exact TMDB match");
   return {
     image:"https://image.tmdb.org/t/p/w1280" + (item.poster_path || item.backdrop_path),
     title,
@@ -599,9 +601,10 @@ async function getRAWGImage(title) {
   if (!response.ok) throw new Error("RAWG request failed");
   const data = await response.json();
   const wanted = normalize(title);
-  const item = (data.results || []).find(x => normalize(x.name) === wanted && x.background_image) ||
-    (data.results || []).find(x => x.background_image);
-  if (!item) throw new Error("No RAWG image");
+  const item = (data.results || []).find(x =>
+    normalize(x.name) === wanted && x.background_image
+  );
+  if (!item) throw new Error("No exact RAWG match");
   return {image:item.background_image,title,source:"RAWG",sourceUrl:"https://rawg.io/games/" + (item.slug || item.id),category:"Games"};
 }
 
@@ -674,6 +677,14 @@ async function getSubjectImage(title,sourceCategory,subcategory="All") {
   for (const source of (sources[sourceCategory] || [title => getWikipediaPage(title,{category:sourceCategory})])) {
     try {
       const subject = await source(title);
+      if (!subject?.image) throw new Error("Subject has no image");
+      if (
+        subject.title &&
+        normalize(subject.title) !== normalize(title) &&
+        sourceCategory !== "Consoles"
+      ) {
+        throw new Error("Source returned the wrong subject");
+      }
       subject.category=sourceCategory;
       await loadImage(subject.image);
       return subject;
