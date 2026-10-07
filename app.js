@@ -134,42 +134,51 @@ async function getWikipediaPage(title) {
 
 async function searchCommons(title) {
   const url = "https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*"
-    + "&generator=search&gsrnamespace=6&gsrsearch=" + encodeURIComponent('"' + title + '"')
-    + "&gsrlimit=12&prop=imageinfo&iiprop=url|mime|size&iiurlwidth=1200";
+    + "&generator=search&gsrnamespace=6&gsrsearch=" + encodeURIComponent(title + " anime")
+    + "&gsrlimit=20&prop=imageinfo&iiprop=url|mime|size&iiurlwidth=1200";
   const r = await fetch(url);
   if (!r.ok) throw new Error("Commons request failed");
   const d = await r.json();
   const pages = Object.values(d.query?.pages || {});
-  const good = pages.filter(p =>
-    p.imageinfo?.[0]?.thumburl &&
-    /^image\/(jpeg|png|webp)$/i.test(p.imageinfo[0].mime || "") &&
-    !/logo|icon|flag|stamp|map|poster|collage|sprite|symbol/i.test(p.title || "")
-  );
-  if (!good.length) throw new Error("No Commons image");
+  const wanted = normalize(title);
+  const good = pages.filter(p => {
+    const info = p.imageinfo?.[0];
+    const text = normalize((p.title || "") + " " + (p.categories || []).join(" "));
+    return info?.thumburl &&
+      /^image\/(jpeg|png|webp)$/i.test(info.mime || "") &&
+      !/logo|icon|flag|stamp|map|poster|collage|sprite|symbol|museum/i.test(text) &&
+      (text.includes(wanted) || text.includes("anime"));
+  });
+  if (!good.length) throw new Error("No matching Commons image");
   const p = good[Math.floor(Math.random() * good.length)];
   return { image: p.imageinfo[0].thumburl, title, source: "Wikimedia Commons", pageid: String(p.pageid) };
 }
 
 async function searchOpenverse(title) {
-  const url = "https://api.openverse.org/v1/images/?q=" + encodeURIComponent('"' + title + '"')
-    + "&page_size=20&mature=false";
+  const url = "https://api.openverse.org/v1/images/?q=" + encodeURIComponent(title + " anime")
+    + "&page_size=30&mature=false";
   const r = await fetch(url);
   if (!r.ok) throw new Error("Openverse request failed");
   const d = await r.json();
-  const results = (d.results || []).filter(x =>
-    (x.thumbnail || x.url) &&
-    !x.mature &&
-    !/logo|icon|flag|stamp|map|poster|collage|sprite|symbol/i.test((x.title || "") + " " + (x.tags || []).join(" "))
-  );
-  if (!results.length) throw new Error("No Openverse image");
-  const x = results[Math.floor(Math.random() * Math.min(results.length, 10))];
+  const wanted = normalize(title);
+  const results = (d.results || []).filter(x => {
+    const text = normalize((x.title || "") + " " + (x.tags || []).join(" "));
+    return (x.thumbnail || x.url) &&
+      !x.mature &&
+      !/logo|icon|flag|stamp|map|poster|collage|sprite|symbol|museum/i.test(text) &&
+      (text.includes(wanted) || text.includes("anime"));
+  });
+  if (!results.length) throw new Error("No matching Openverse image");
+  const x = results[Math.floor(Math.random() * Math.min(results.length, 15))];
   return { image: x.thumbnail || x.url, title, source: "Openverse", pageid: "openverse:" + x.id };
 }
 
 async function getSubjectImage(title) {
-  const sources = [() => searchCommons(title), () => searchOpenverse(title), () => getWikipediaPage(title)]
-    .sort(() => Math.random() - 0.5);
-  for (const source of sources) {
+  const isAnime = current.name === "Anime";
+  const sources = isAnime
+    ? [() => searchCommons(title), () => searchOpenverse(title), () => getWikipediaPage(title)]
+    : [() => searchCommons(title), () => searchOpenverse(title), () => getWikipediaPage(title)];
+  for (const source of sources.sort(() => Math.random() - 0.5)) {
     try { return await source(); } catch (_) {}
   }
   throw new Error("No image source worked");
