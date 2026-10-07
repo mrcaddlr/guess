@@ -85,7 +85,7 @@ const tvSubcategories = {
 const $ = selector => document.querySelector(selector);
 const categoriesEl = $("#categories");
 let score = 0, streak = 0, round = 0, current = null, used = new Set();
-let busy = false, roundLocked = false, transitionTimer = null;
+let busy = false, roundLocked = false, transitionTimer = null, gameToken = 0;
 
 const answerAliases = {
   "playstation vita":["ps vita","psv","psvita","ps v ita"],
@@ -134,14 +134,39 @@ function similarity(a,b) {
   return hits / Math.max(aa.size,bb.size);
 }
 
-function answerMatches(input,title) {
-  const a = normalize(input), t = normalize(title);
-  if (!a) return false;
-  if (a === t || similarity(a,t) >= .78) return true;
-  const aliases = new Set([...(answerAliases[t] || []),...generatedAliases(title)]);
-  return [...aliases].map(normalize).some(alias => a === alias);
+function levenshtein(a,b) {
+  const row = Array.from({length:b.length + 1},(_,i) => i);
+  for(let i=1;i<=a.length;i++){
+    let diagonal = row[0];
+    row[0] = i;
+    for(let j=1;j<=b.length;j++){
+      const above = row[j];
+      row[j] = a[i-1] === b[j-1]
+        ? diagonal
+        : Math.min(diagonal + 1,row[j] + 1,row[j-1] + 1);
+      diagonal = above;
+    }
+  }
+  return row[b.length];
 }
 
+function answerMatches(input,title) {
+  const a = normalize(input);
+  const t = normalize(title);
+  if (!a) return false;
+  if (a === t) return true;
+
+  const aliases = new Set([...(answerAliases[t] || []),...generatedAliases(title)].map(normalize));
+  if ([...aliases].some(alias => a === alias)) return true;
+
+  // Allow small typos, but do not accept arbitrary short substrings like "bat" for "batman".
+  if (a.length >= 5 && t.length >= 5) {
+    const limit = Math.max(1,Math.floor(Math.max(a.length,t.length) / 5));
+    if (levenshtein(a,t) <= limit) return true;
+  }
+
+  return false;
+}
 function addDropdown(name,subcategories) {
   const button = document.createElement("button");
   button.className = "category dropdown-toggle";
@@ -207,16 +232,28 @@ async function getWikipediaPage(title) {
 }
 
 async function getAniListImage(title) {
-  const query = 'query ($search: String) { Media(search: $search, type: ANIME) { id coverImage { extraLarge large } } }';
+  const query = 'query ($search: String) { Page(perPage: 10) { media(search: $search, type: ANIME) { id title { romaji english native } coverImage { extraLarge large } } } }';
   const response = await fetch("https://graphql.anilist.co",{
     method:"POST",
     headers:{"Content-Type":"application/json","Accept":"application/json"},
     body:JSON.stringify({query,variables:{search:title}})
   });
   if (!response.ok) throw new Error("AniList request failed");
-  const media = (await response.json()).data?.Media;
-  if (!media?.coverImage?.extraLarge) throw new Error("No AniList image");
-  return {image:media.coverImage.extraLarge,title,source:"AniList",sourceUrl:"https://anilist.co/anime/" + media.id};
+  const media = (await response.json()).data?.Page?.media || [];
+  const wanted = normalize(title);
+  const exact = media.find(item =>
+    [item.title?.english,item.title?.romaji,item.title?.native]
+      .filter(Boolean)
+      .some(name => normalize(name) === wanted)
+  );
+  const selected = exact || media.find(item => item.coverImage?.extraLarge);
+  if (!selected?.coverImage?.extraLarge) throw new Error("No AniList image");
+  return {
+    image:selected.coverImage.extraLarge,
+    title,
+    source:"AniList",
+    sourceUrl:"https://anilist.co/anime/" + selected.id
+  };
 }
 
 async function getTVMazeImage(title) {
@@ -278,7 +315,7 @@ function loadImage(url) {
   });
 }
 
-async function getSubjectImage(title) {
+async function getSubjectImage(title,sourceCategory) {
   const sourceMap = {
     Anime:[getAniListImage,getWikipediaPage],
     TV:[getTVMazeImage,getWikipediaPage],
@@ -292,7 +329,7 @@ async function getSubjectImage(title) {
     Franchises:[getWikipediaPage]
   };
 
-  for (const source of (sourceMap[current.sourceCategory] || [getWikipediaPage])) {
+  for (const source of (sourceMap[sourceCategory] || [getWikipediaPage])) {
     try {
       const subject = await source(title);
       await loadImage(subject.image);
@@ -302,9 +339,10 @@ async function getSubjectImage(title) {
   throw new Error("No image source worked");
 }
 
-async function chooseSubject() {
-  const pool = current?.pool || [];
+async function chooseSubject(snapshot) {
+  const pool = snapshot.pool || [];
   if (!pool.length) throw new Error("Empty category");
+
   let available = pool.filter(title => !used.has(normalize(title)));
   if (!available.length) {
     used.clear();
@@ -313,7 +351,7 @@ async function chooseSubject() {
 
   for (const title of [...available].sort(() => Math.random() - .5)) {
     try {
-      const subject = await getSubjectImage(title);
+      const subject = await getSubjectImage(title,snapshot.sourceCategory);
       used.add(normalize(title));
       return subject;
     } catch (_) {}
@@ -323,6 +361,12 @@ async function chooseSubject() {
 
 async function nextRound() {
   if (!current) return;
+  const token = gameToken;
+  const snapshot = {
+    pool:[...(current.pool || [])],
+    sourceCategory:current.sourceCategory
+  };
+
   busy = true;
   roundLocked = true;
   current.subject = null;
@@ -335,12 +379,13 @@ async function nextRound() {
   $("#lastPoints").textContent = "0";
   $("#questionImage").hidden = true;
   $("#questionImage").removeAttribute("src");
-  $("#imageWrap .loading").textContent = "finding an image…";
   $("#sourceCredit").hidden = true;
+  $("#imageWrap .loading").textContent = "finding an image…";
 
   try {
-    const subject = await chooseSubject();
-    if (!current) return;
+    const subject = await chooseSubject(snapshot);
+    if (!current || token !== gameToken) return;
+
     current.subject = subject;
     $("#questionImage").src = subject.image;
     $("#questionImage").hidden = false;
@@ -349,9 +394,11 @@ async function nextRound() {
     $("#sourceCredit").textContent = "image source: " + subject.source;
     $("#sourceCredit").hidden = !subject.source;
   } catch (_) {
+    if (token !== gameToken) return;
     $("#imageWrap .loading").textContent = "couldn't find an image — try another category";
   }
 
+  if (token !== gameToken || !current) return;
   busy = false;
   roundLocked = !current.subject;
   if (current.subject) $("#answer").focus();
@@ -359,6 +406,9 @@ async function nextRound() {
 
 function startCategory(name,pool,sourceCategory) {
   clearTimeout(transitionTimer);
+  gameToken++;
+  busy=true;
+  roundLocked=true;
   current = {name,pool:pool || [],sourceCategory:sourceCategory || name,subject:null};
   round = 0;
   used.clear();
@@ -429,6 +479,7 @@ $("#reveal").onclick = () => {
 
 $("#backHome").onclick = () => {
   clearTimeout(transitionTimer);
+  gameToken++;
   transitionTimer = null;
   busy = false;
   roundLocked = false;
