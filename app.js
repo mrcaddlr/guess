@@ -210,10 +210,10 @@ async function getRAWGImage(title) {
 
 async function getSubjectImage(title) {
   const map = {
-    Anime:[() => getAniListImage(title)],
-    Games:[() => getRAWGImage(title)],
-    Movies:[() => searchTMDB(title,"movie")],
-    TV:[() => searchTMDB(title,"tv")],
+    Anime:[() => getAniListImage(title), () => getWikipediaPage(title)],
+    Games:[() => getRAWGImage(title), () => getWikipediaPage(title)],
+    Movies:[() => searchTMDB(title,"movie"), () => getWikipediaPage(title)],
+    TV:[() => getTVMazeImage(title), () => getWikipediaPage(title)],
     Consoles:[() => getWikipediaPage(title)],
     Characters:[() => getWikipediaPage(title)],
     People:[() => getWikipediaPage(title)],
@@ -248,7 +248,7 @@ async function nextRound() {
   busy=false; $("#answer").focus();
 }
 
-function startCategory(name,pool=categories[name],sourceCategory=name) {
+function startCategory(name,pool=categories[name],sourceCategory=name) {\n  clearTimeout(transitionTimer);
   current={name,pool,sourceCategory,subject:null}; round=0; used.clear();
   $("#categoryLabel").textContent=name.toUpperCase();
   $("#home").classList.remove("active"); $("#game").classList.add("active"); nextRound();
@@ -264,11 +264,11 @@ $("#answerForm").addEventListener("submit",e=>{
   const guess=$("#answer").value.trim(); if(!guess)return;
   if(answerMatches(guess,current.subject.title)){
     streak++; const points=100+Math.min(streak-1,10)*10;
-    finish(points,"correct — <strong>"+current.subject.title+"</strong>",true); $("#streak").textContent=streak; setTimeout(nextRound,900);
+    finish(points,"correct — <strong>"+current.subject.title+"</strong>",true); $("#streak").textContent=streak; scheduleNext(900);
   } else { streak=0; $("#streak").textContent=0; finish(0,"not quite. try again, skip, or reveal.",false); }
 });
-$("#skip").onclick=()=>{if(!current?.subject||busy)return;streak=0;$("#streak").textContent=0;finish(0,"skipped — <strong>"+current.subject.title+"</strong>",false);setTimeout(nextRound,700);};
-$("#reveal").onclick=()=>{if(!current?.subject||busy)return;streak=0;$("#streak").textContent=0;finish(0,"the answer was <strong>"+current.subject.title+"</strong>",false);setTimeout(nextRound,1000);};
-$("#backHome").onclick=()=>{$("#game").classList.remove("active");$("#home").classList.add("active");};
+$("#skip").onclick=()=>{if(!current?.subject||busy)return;streak=0;$("#streak").textContent=0;finish(0,"skipped — <strong>"+current.subject.title+"</strong>",false);scheduleNext(700);};
+$("#reveal").onclick=()=>{if(!current?.subject||busy)return;streak=0;$("#streak").textContent=0;finish(0,"the answer was <strong>"+current.subject.title+"</strong>",false);scheduleNext(1000);};
+$("#backHome").onclick=()=>{clearTimeout(transitionTimer);transitionTimer=null;busy=false;roundLocked=false;current=null;$("#game").classList.remove("active");$("#home").classList.add("active");};
 $("#randomCategory").onclick=()=>{const keys=Object.keys(categories).filter(k=>k!=="Movies");startCategory(keys[Math.floor(Math.random()*keys.length)]);};
 renderCategories();
