@@ -288,3 +288,81 @@ button{touch-action:manipulation}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
 }
+
+.vision-test-page{padding:24px;background:#050507}
+.vision-test{
+  width:min(1200px,100%);
+  margin:0 auto;
+  padding:20px;
+}
+.vision-test h1{margin:0 0 16px;font-size:clamp(44px,7vw,88px);line-height:.9;letter-spacing:-.07em}
+.vision-test header>p:last-child{max-width:760px;color:#aaa9b3;line-height:1.55}
+.vision-test-controls{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:end;
+  gap:10px;
+  margin:28px 0;
+}
+.vision-test-controls label{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  color:#aaa9b3;
+  font-size:12px;
+  min-width:240px;
+}
+.vision-test-controls input{
+  color:#fff;
+  background:rgba(255,255,255,.065);
+  border:1px solid rgba(255,255,255,.13);
+  border-radius:14px;
+  padding:12px 13px;
+}
+.vision-test-controls button{min-height:46px}
+.vision-test-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+.vision-test-grid figure{margin:0}
+.vision-test-grid figcaption{color:#aaa9b3;font-size:11px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.12em}
+.vision-test-grid img{
+  width:100%;
+  max-height:70vh;
+  object-fit:contain;
+  display:block;
+  background:rgba(0,0,0,.18);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:18px;
+}
+#visionReport{
+  margin:12px 0 0;
+  padding:16px;
+  overflow:auto;
+  color:#d5d4dc;
+  background:rgba(0,0,0,.25);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:18px;
+  font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+#visionDebug{
+  position:fixed;
+  left:12px;
+  right:12px;
+  bottom:12px;
+  z-index:99999;
+  max-height:35vh;
+  overflow:auto;
+  margin:0;
+  padding:12px;
+  color:#d8d7df;
+  background:rgba(8,8,12,.88);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:14px;
+  font:10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;
+  pointer-events:none;
+}
+@media(max-width:760px){
+  .vision-test-grid{grid-template-columns:1fr}
+}
