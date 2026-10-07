@@ -4,35 +4,36 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0d0d12">
+  <meta name="description" content="guess — a fast image guessing game for movies, TV, anime, games, characters, consoles, and more.">
   <title>guess — image guessing game</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <main class="app">
     <header class="topbar">
-      <a class="brand" href="#">guess</a>
-      <div class="stats">
+      <a class="brand" href="#" aria-label="guess home">guess</a>
+      <div class="stats" aria-label="Game score">
         <span>score <b id="score">0</b></span>
         <span>streak <b id="streak">0</b></span>
       </div>
     </header>
 
-    <section id="home" class="screen active">
+    <section id="home" class="screen active" aria-labelledby="homeTitle">
       <div class="hero">
         <p class="eyebrow">IMAGE GUESSING GAME</p>
-        <h1>guess what<br>you see.</h1>
+        <h1 id="homeTitle">guess what<br>you see.</h1>
         <p>movies, tv, anime, games, characters, consoles, people, places, and a lot more.</p>
       </div>
       <div class="section-head">
         <h2>choose a category</h2>
-        <button id="randomCategory" class="ghost">random</button>
+        <button id="randomCategory" class="ghost" type="button">random</button>
       </div>
       <div id="categories" class="category-grid"></div>
     </section>
 
-    <section id="game" class="screen">
+    <section id="game" class="screen" aria-labelledby="categoryLabel">
       <div class="game-head">
-        <button id="backHome" class="ghost">← categories</button>
+        <button id="backHome" class="ghost" type="button">← categories</button>
         <div>
           <p id="categoryLabel" class="eyebrow"></p>
           <h2 id="roundLabel">round 1</h2>
@@ -42,25 +43,27 @@
 
       <div class="card">
         <div id="imageWrap" class="image-wrap">
-          <div class="loading">finding an image…</div>
-          <img id="questionImage" alt="Guess the subject" hidden>
+          <div class="loading" role="status" aria-live="polite">finding an image…</div>
+          <img id="questionImage" alt="Mystery image" hidden decoding="async">
+          <a id="sourceCredit" class="source-credit" target="_blank" rel="noopener noreferrer" hidden></a>
         </div>
+
         <div class="question">
           <p class="eyebrow">WHAT IS THIS?</p>
           <h1 id="questionHint">type your answer</h1>
-          <form id="answerForm">
-            <input id="answer" autocomplete="off" spellcheck="false" placeholder="your guess…" autofocus>
+          <form id="answerForm" autocomplete="off">
+            <input id="answer" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="your guess…" aria-label="Your guess">
             <button type="submit">guess</button>
           </form>
           <div class="actions">
-            <button id="skip" class="text-btn">skip</button>
-            <button id="reveal" class="text-btn">reveal</button>
+            <button id="skip" class="text-btn" type="button">skip</button>
+            <button id="reveal" class="text-btn" type="button">reveal</button>
           </div>
-          <p id="feedback" class="feedback"></p>
+          <p id="feedback" class="feedback" aria-live="polite"></p>
         </div>
       </div>
     </section>
   </main>
-  <script src="app.js"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
