@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0d0d12">
+  <title>guess — image guessing game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <a class="brand" href="#">guess</a>
+      <div class="stats">
+        <span>score <b id="score">0</b></span>
+        <span>streak <b id="streak">0</b></span>
+      </div>
+    </header>
+
+    <section id="home" class="screen active">
+      <div class="hero">
+        <p class="eyebrow">IMAGE GUESSING GAME</p>
+        <h1>guess what<br>you see.</h1>
+        <p>movies, tv, anime, games, characters, consoles, people, places, and a lot more.</p>
+      </div>
+      <div class="section-head">
+        <h2>choose a category</h2>
+        <button id="randomCategory" class="ghost">random</button>
+      </div>
+      <div id="categories" class="category-grid"></div>
+    </section>
+
+    <section id="game" class="screen">
+      <div class="game-head">
+        <button id="backHome" class="ghost">← categories</button>
+        <div>
+          <p id="categoryLabel" class="eyebrow"></p>
+          <h2 id="roundLabel">round 1</h2>
+        </div>
+        <div class="round-score">+<span id="lastPoints">0</span></div>
+      </div>
+
+      <div class="card">
+        <div id="imageWrap" class="image-wrap">
+          <div class="loading">finding an image…</div>
+          <img id="questionImage" alt="Guess the subject" hidden>
+        </div>
+        <div class="question">
+          <p class="eyebrow">WHAT IS THIS?</p>
+          <h1 id="questionHint">type your answer</h1>
+          <form id="answerForm">
+            <input id="answer" autocomplete="off" spellcheck="false" placeholder="your guess…" autofocus>
+            <button type="submit">guess</button>
+          </form>
+          <div class="actions">
+            <button id="skip" class="text-btn">skip</button>
+            <button id="reveal" class="text-btn">reveal</button>
+          </div>
+          <p id="feedback" class="feedback"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
