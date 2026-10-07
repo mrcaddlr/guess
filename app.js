@@ -115,12 +115,30 @@ function normalize(value) {
 }
 
 function generatedAliases(title) {
-  const n = normalize(title);
-  const out = new Set([n,n.replace(/^the /,"")]);
-  const words = n.split(" ").filter(w => !["the","of","and","a","an","to","in","on","v"].includes(w));
-  if (words.length >= 2) out.add(words.map(w => w[0]).join(""));
-  out.add(n.replace(/\bv\b/g,"5"));
+  const n=normalize(title);
+  const out=new Set([n,n.replace(/^the /,"")]);
+  const words=n.split(" ").filter(Boolean);
+  const significant=words.filter(w=>!["the","of","and","a","an","to","in","on","for"].includes(w));
+  // Acronyms are only generated when there are at least 3 meaningful words and 3+ letters.
+  if(significant.length>=3){
+    const acronym=significant.map(w=>w[0]).join("");
+    if(acronym.length>=3) out.add(acronym);
+  }
   return [...out];
+}
+
+function levenshtein(a,b) {
+  const row = Array.from({length:b.length + 1},(_,i) => i);
+  for(let i=1;i<=a.length;i++){
+    let diagonal=row[0];
+    row[0]=i;
+    for(let j=1;j<=b.length;j++){
+      const above=row[j];
+      row[j]=a[i-1]===b[j-1] ? diagonal : Math.min(diagonal+1,row[j]+1,row[j-1]+1);
+      diagonal=above;
+    }
+  }
+  return row[b.length];
 }
 
 function answerMatches(input,title) {
@@ -189,6 +207,16 @@ function renderCategories() {
   });
 }
 
+const animeSourceQueries = {
+  "demon slayer":"Kimetsu no Yaiba",
+  "neon genesis evangelion":"Neon Genesis Evangelion",
+  "hunter hunter":"Hunter x Hunter",
+  "spy family":"Spy x Family",
+  "fullmetal alchemist":"Fullmetal Alchemist",
+  "my hero academia":"Boku no Hero Academia",
+  "jojo s bizarre adventure":"JoJo no Kimyou na Bouken"
+};
+
 async function getWikipediaPage(title) {
   const url = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&titles=" +
     encodeURIComponent(title) + "&prop=pageimages|info&inprop=url&pithumbsize=1200";
@@ -209,7 +237,7 @@ async function getAniListImage(title) {
   const response = await fetch("https://graphql.anilist.co",{
     method:"POST",
     headers:{"Content-Type":"application/json","Accept":"application/json"},
-    body:JSON.stringify({query,variables:{search:title}})
+    body:JSON.stringify({query,variables:{search:animeSourceQueries[normalize(title)] || title}})
   });
   if (!response.ok) throw new Error("AniList request failed");
   const media = (await response.json()).data?.Page?.media || [];
@@ -288,6 +316,50 @@ function loadImage(url) {
   });
 }
 
+async function getAniListRandomImage() {
+  const page=Math.floor(Math.random()*80)+1;
+  const query='query ($page:Int) { Page(page:$page,perPage:50) { media(type:ANIME,sort:POPULARITY_DESC,isAdult:false) { id title { romaji english } coverImage { extraLarge } } } }';
+  const response=await fetch("https://graphql.anilist.co",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({query,variables:{page}})});
+  if(!response.ok) throw new Error("AniList discovery failed");
+  const list=(await response.json()).data?.Page?.media||[];
+  const item=list.filter(x=>x.coverImage?.extraLarge)[Math.floor(Math.random()*list.filter(x=>x.coverImage?.extraLarge).length)];
+  if(!item) throw new Error("No AniList candidate");
+  return {image:item.coverImage.extraLarge,title:item.title.english||item.title.romaji,source:"AniList",sourceUrl:"https://anilist.co/anime/"+item.id};
+}
+
+async function getTVMazeRandomImage() {
+  const page=Math.floor(Math.random()*120);
+  const response=await fetch("https://api.tvmaze.com/shows?page="+page);
+  if(!response.ok) throw new Error("TVMaze discovery failed");
+  const list=(await response.json()).filter(x=>x.image?.original);
+  const item=list[Math.floor(Math.random()*list.length)];
+  if(!item) throw new Error("No TVMaze candidate");
+  return {image:item.image.original,title:item.name,source:"TVMaze",sourceUrl:item.url};
+}
+
+async function getWikipediaDiscovery(sourceCategory) {
+  const queries={
+    Consoles:"intitle:console -intitle:category -intitle:list",
+    Characters:""fictional character" -intitle:list -intitle:category",
+    People:""actor" OR "actress" OR "director" -intitle:list -intitle:category",
+    Places:""fictional place" OR "city" -intitle:list -intitle:category",
+    Objects:""fictional object" OR "weapon" -intitle:list -intitle:category",
+    Franchises:""media franchise" -intitle:list -intitle:category",
+    Games:""video game" -intitle:list -intitle:category",
+    Movies:""film" -intitle:list -intitle:category"
+  };
+  const q=queries[sourceCategory] || sourceCategory;
+  const url="https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrsearch="+encodeURIComponent(q)+"&gsrnamespace=0&gsrlimit=20&prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=1200";
+  const response=await fetch(url);
+  if(!response.ok) throw new Error("Wikipedia discovery failed");
+  const pages=Object.values((await response.json()).query?.pages||{}).filter(p=>p.thumbnail?.source);
+  const filtered=pages.filter(p=>!/(list of|disambiguation|category:|anime influenced animation)/i.test(p.title));
+  const pool=filtered.length?filtered:pages;
+  const page=pool[Math.floor(Math.random()*pool.length)];
+  if(!page) throw new Error("No Wikipedia candidate");
+  return {image:page.thumbnail.source,title:page.title,source:"Wikipedia",sourceUrl:page.fullurl||"https://en.wikipedia.org/wiki/"+encodeURIComponent(page.title)};
+}
+
 async function getSubjectImage(title,sourceCategory) {
   const sourceMap = {
     Anime:[getAniListImage,getWikipediaPage],
@@ -313,21 +385,30 @@ async function getSubjectImage(title,sourceCategory) {
 }
 
 async function chooseSubject(snapshot) {
-  const pool = snapshot.pool || [];
-  if (!pool.length) throw new Error("Empty category");
+  const pool=snapshot.pool||[];
+  let available=pool.filter(title=>!used.has(normalize(title)));
 
-  let available = pool.filter(title => !used.has(normalize(title)));
-  if (!available.length) {
-    used.clear();
-    available = [...pool];
-  }
-
-  for (const title of [...available].sort(() => Math.random() - .5)) {
-    try {
-      const subject = await getSubjectImage(title,snapshot.sourceCategory);
+  for(const title of [...available].sort(()=>Math.random()-.5)){
+    try{
+      const subject=await getSubjectImage(title,snapshot.sourceCategory);
       used.add(normalize(title));
       return subject;
-    } catch (_) {}
+    }catch(_){}
+  }
+
+  // The curated pool is only the seed. After it is consumed, pull fresh subjects
+  // from the category's native database instead of looping the same 20 items.
+  for(let attempt=0;attempt<12;attempt++){
+    try{
+      let subject;
+      if(snapshot.sourceCategory==="Anime") subject=await getAniListRandomImage();
+      else if(snapshot.sourceCategory==="TV") subject=await getTVMazeRandomImage();
+      else subject=await getWikipediaDiscovery(snapshot.sourceCategory);
+      if(subject?.title && !used.has(normalize(subject.title))){
+        used.add(normalize(subject.title));
+        return subject;
+      }
+    }catch(_){}
   }
   throw new Error("Couldn't find a usable subject");
 }
@@ -474,3 +555,6 @@ $("#randomCategory").onclick = () => {
 };
 
 renderCategories();
+
+
+["contextmenu","dragstart"].forEach(type=>$("#questionImage").addEventListener(type,e=>e.preventDefault()));
