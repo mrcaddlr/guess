@@ -1,27 +1,45 @@
 # guess
 
-A lightweight image guessing game for movies, TV, anime, games, characters, consoles, people, places, objects, and more.
+a lightweight image guessing game for movies, tv, anime, games, characters, consoles, people, places, objects, and more.
 
-## How it works
+## categories
 
-- Pick a category.
-- The game searches Wikipedia for a real image matching that category.
-- Guess what the image is.
-- Correct answers earn points.
-- Streaks increase the points you earn.
-- Skip/reveal gives 0 points and resets the streak.
-- There is no fixed end: keep playing as long as you want.
+**Movies** and **TV** are expandable categories with genre subcategories such as All, Sci-Fi, Horror, Fantasy, Animation, Action, Comedy, Drama, Crime, Mystery, and Thriller.
 
-## Hosting
+Other categories include Anime, Games, Consoles, Characters, People, Places, Objects, and Franchises.
 
-This is a plain HTML/CSS/JavaScript site with no build step.
+## image sources
 
-Enable **Settings → Pages → Deploy from branch → main / root** on GitHub and open the generated Pages URL.
+the game uses category-specific sources first:
 
-## Image source
+- Anime → AniList
+- TV → TVMaze
+- Movies → TMDB when a user-supplied key exists, otherwise Wikipedia
+- Games → RAWG when a user-supplied key exists, otherwise Wikipedia
+- Consoles / Characters / People / Places / Objects / Franchises → Wikipedia
 
-Images and subject metadata are retrieved at runtime from Wikipedia's public APIs. The game does not generate the quiz images itself.
+The quiz never uses a broad category search to decide what the subject is. The subject comes from curated pools, and the source only provides the image for that exact subject.
 
-## Adding categories
+TVMaze exposes a free public API with show images and CORS support for browser applications. AniList exposes a public GraphQL API for anime data and cover images.
 
-Edit the `categories` object in `app.js`. Each category contains search queries that Wikipedia can use to find candidate subjects.
+## gameplay
+
+- pick a category or use **random**
+- guess the image
+- correct answers increase your streak and score
+- skip/reveal gives 0 points and resets the streak
+- solved, skipped, and revealed rounds are locked until the next round starts
+- broken images are rejected before they become a playable round
+- repeats are avoided until a category pool is exhausted
+
+## hosting
+
+this is a plain HTML/CSS/JavaScript site with no build step.
+
+GitHub Pages is deployed by the workflow in `.github/workflows/pages.yml`.
+
+## optional API keys
+
+TMDB and RAWG require API credentials. This build does not embed private credentials. Without those keys, Movies and Games fall back to Wikipedia so the public GitHub Pages site remains playable.
+
+Keys, when present, are read from `localStorage` under `tmdb_api_key` and `rawg_api_key`.
