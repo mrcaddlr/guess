@@ -999,7 +999,7 @@ $("#answerForm").addEventListener("submit",event=>{
     finish(points,"correct — <strong>"+current.subject.title+"</strong>",true);
     scheduleNext(1100);
   }else if(result.type==="typo"){
-    $("#feedback").innerHTML="there's a typo — <strong>"+result.correctTitle+"</strong> is the correct spelling. try again.";
+    $("#feedback").textContent="there's a typo. try again.";
     $("#feedback").className="feedback typo";
     $("#answer").focus();
   }else{
