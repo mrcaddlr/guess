@@ -248,115 +248,117 @@ function answerMatches(input,title) {
 }
 
 function getConsoleTextMaskCandidates(canvas) {
-  const width=canvas.width;
-  const height=canvas.height;
-  const sampleWidth=Math.min(640,width);
-  const sampleHeight=Math.max(1,Math.round(height*(sampleWidth/width)));
-  const scan=document.createElement("canvas");
-  scan.width=sampleWidth;
-  scan.height=sampleHeight;
+  const width = canvas.width;
+  const height = canvas.height;
+  const sampleWidth = Math.min(720, width);
+  const sampleHeight = Math.max(1, Math.round(height * (sampleWidth / width)));
 
-  const sctx=scan.getContext("2d",{willReadFrequently:true});
-  sctx.drawImage(canvas,0,0,sampleWidth,sampleHeight);
-  const data=sctx.getImageData(0,0,sampleWidth,sampleHeight).data;
+  const scan = document.createElement("canvas");
+  scan.width = sampleWidth;
+  scan.height = sampleHeight;
+  const scanCtx = scan.getContext("2d", { willReadFrequently: true });
+  scanCtx.drawImage(canvas, 0, 0, sampleWidth, sampleHeight);
 
-  const gray=new Float32Array(sampleWidth*sampleHeight);
-  for(let i=0,p=0;p<gray.length;p++,i+=4) {
-    gray[p]=0.299*data[i]+0.587*data[i+1]+0.114*data[i+2];
+  const data = scanCtx.getImageData(0, 0, sampleWidth, sampleHeight).data;
+  const gray = new Float32Array(sampleWidth * sampleHeight);
+
+  for (let i = 0, p = 0; p < gray.length; p++, i += 4) {
+    gray[p] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
   }
 
-  // High local contrast + edge density approximates printed wordmark/text.
-  const edge=new Uint8Array(gray.length);
-  for(let y=1;y<sampleHeight-1;y++) {
-    for(let x=1;x<sampleWidth-1;x++) {
-      const p=y*sampleWidth+x;
-      const gx=Math.abs(gray[p+1]-gray[p-1]);
-      const gy=Math.abs(gray[p+sampleWidth]-gray[p-sampleWidth]);
-      edge[p]=(gx+gy>95) ? 1 : 0;
+  const edge = new Uint8Array(gray.length);
+  for (let y = 1; y < sampleHeight - 1; y++) {
+    for (let x = 1; x < sampleWidth - 1; x++) {
+      const p = y * sampleWidth + x;
+      const gx = Math.abs(gray[p + 1] - gray[p - 1]);
+      const gy = Math.abs(gray[p + sampleWidth] - gray[p - sampleWidth]);
+      edge[p] = gx + gy >= 130 ? 1 : 0;
     }
   }
 
-  // Horizontal/vertical projection finds compact bands of lettering.
-  const xScore=new Float32Array(sampleWidth);
-  const yScore=new Float32Array(sampleHeight);
-  for(let y=1;y<sampleHeight-1;y++) {
-    let row=0;
-    for(let x=1;x<sampleWidth-1;x++) row+=edge[y*sampleWidth+x];
-    yScore[y]=row/sampleWidth;
-  }
-  for(let x=1;x<sampleWidth-1;x++) {
-    let col=0;
-    for(let y=1;y<sampleHeight-1;y++) col+=edge[y*sampleWidth+x];
-    xScore[x]=col/sampleHeight;
-  }
+  const candidates = [];
+  const minW = Math.max(26, Math.round(sampleWidth * 0.035));
+  const maxW = Math.round(sampleWidth * 0.36);
+  const minH = Math.max(7, Math.round(sampleHeight * 0.010));
+  const maxH = Math.round(sampleHeight * 0.10);
 
-  const boxes=[];
-  const minW=Math.max(20,Math.round(sampleWidth*0.04));
-  const maxW=Math.round(sampleWidth*0.55);
-  const minH=Math.max(6,Math.round(sampleHeight*0.018));
-  const maxH=Math.round(sampleHeight*0.24);
+  for (let h = minH; h <= maxH; h = Math.max(h + 1, Math.round(h * 1.35))) {
+    for (let w = minW; w <= maxW; w = Math.max(w + 1, Math.round(w * 1.3))) {
+      const stepX = Math.max(10, Math.round(w * 0.38));
+      const stepY = Math.max(7, Math.round(h * 0.60));
 
-  // Scan overlapping windows. Text/logo bands tend to have strong internal edges
-  // while staying relatively compact.
-  for(let h=Math.round(sampleHeight*0.045);h<=maxH;h=Math.round(h*1.35)) {
-    for(let w=Math.round(sampleWidth*0.08);w<=maxW;w=Math.round(w*1.3)) {
-      const stepX=Math.max(8,Math.round(w*0.32));
-      const stepY=Math.max(5,Math.round(h*0.45));
-      for(let y=0;y+h<=sampleHeight;y+=stepY) {
-        let rowBand=0;
-        for(let yy=y;yy<y+h;yy++) rowBand+=yScore[yy];
-        rowBand/=h;
+      for (let y = 0; y + h <= sampleHeight; y += stepY) {
+        for (let x = 0; x + w <= sampleWidth; x += stepX) {
+          let edgeCount = 0;
+          let bright = 0;
+          let dark = 0;
 
-        for(let x=0;x+w<=sampleWidth;x+=stepX) {
-          const xBand=xScore.subarray(x,Math.min(sampleWidth,x+w));
-          let xAvg=0;
-          for(const v of xBand)xAvg+=v;
-          xAvg/=xBand.length;
+          for (let yy = y; yy < y + h; yy++) {
+            for (let xx = x; xx < x + w; xx++) {
+              const p = yy * sampleWidth + xx;
+              if (edge[p]) edgeCount++;
+              if (gray[p] >= 205) bright++;
+              if (gray[p] <= 50) dark++;
+            }
+          }
 
-          const edgeDensity=(rowBand+xAvg)/2;
-          if(edgeDensity<0.075) continue;
+          const area = w * h;
+          const edgeDensity = edgeCount / area;
+          if (edgeDensity < 0.13) continue;
 
-          const normalizedArea=(w*h)/(sampleWidth*sampleHeight);
-          if(normalizedArea<0.0015 || normalizedArea>0.15) continue;
+          const brightRatio = bright / area;
+          const darkRatio = dark / area;
+          if (brightRatio > 0.90 || darkRatio > 0.90) continue;
 
-          const centerBonus=1-Math.min(1,Math.abs((x+w/2)/sampleWidth-0.5)*1.4);
-          const yCenter=(y+h/2)/sampleHeight;
-          const verticalBonus=0.7+0.6*(1-Math.min(1,Math.abs(yCenter-0.55)*1.8));
-          const aspect=Math.max(w/h,h/w);
-          if(aspect<1.6 || aspect>18) continue;
+          const aspect = w / Math.max(1, h);
+          if (aspect < 2.4 || aspect > 12) continue;
 
-          boxes.push({
-            x,y,w,h,
-            score:edgeDensity*100 + centerBonus*16 + verticalBonus*12
-          });
+          const areaRatio = area / (sampleWidth * sampleHeight);
+          if (areaRatio < 0.0007 || areaRatio > 0.035) continue;
+
+          const cx = (x + w / 2) / sampleWidth;
+          const cy = (y + h / 2) / sampleHeight;
+          const edgeDistance = Math.min(cx, 1 - cx, cy, 1 - cy);
+
+          // Most console branding is near an outer face/edge. Treat the middle
+          // as hostile territory so ordinary console detail is not destroyed.
+          const spatialScore =
+            edgeDistance < 0.18 ? 1.35 :
+            edgeDistance < 0.28 ? 1.00 :
+            edgeDistance < 0.36 ? 0.42 : 0.12;
+
+          const centerPenalty =
+            Math.abs(cx - 0.5) < 0.16 && Math.abs(cy - 0.5) < 0.16
+              ? (edgeDensity < 0.25 ? 40 : 22)
+              : 0;
+
+          const strokeBalance = 1 - Math.abs(brightRatio - darkRatio);
+          const score =
+            edgeDensity * 110 * spatialScore +
+            Math.min(aspect, 8) * 2 +
+            strokeBalance * 8 -
+            centerPenalty;
+
+          if (score < 19) continue;
+          candidates.push({ x, y, w, h, score });
         }
       }
     }
   }
 
-  boxes.sort((a,b)=>b.score-a.score);
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0];
 
-  const chosen=[];
-  for(const box of boxes) {
-    if(chosen.some(other=>{
-      const ax=Math.max(box.x,other.x);
-      const ay=Math.max(box.y,other.y);
-      const bx=Math.min(box.x+box.w,other.x+other.w);
-      const by=Math.min(box.y+box.h,other.y+other.h);
-      return Math.max(0,bx-ax)*Math.max(0,by-ay) > Math.min(box.w*box.h,other.w*other.h)*0.35;
-    })) continue;
-    chosen.push(box);
-    if(chosen.length>=3) break;
-  }
+  // One confident candidate max. Uncertain means untouched image.
+  if (!best) return [];
 
-  return chosen.map(box=>({
-    x:Math.round(box.x/sampleWidth*canvas.width),
-    y:Math.round(box.y/sampleHeight*canvas.height),
-    w:Math.round(box.w/sampleWidth*canvas.width),
-    h:Math.round(box.h/sampleHeight*canvas.height)
-  }));
+  return [{
+    x: Math.round(best.x / sampleWidth * width),
+    y: Math.round(best.y / sampleHeight * height),
+    w: Math.round(best.w / sampleWidth * width),
+    h: Math.round(best.h / sampleHeight * height)
+  }];
 }
-
 async function prepareConsoleImage(subject) {
   if(subject?.category!=="Consoles") return subject?.image;
 
@@ -379,20 +381,12 @@ async function prepareConsoleImage(subject) {
   let candidates=[];
   try { candidates=getConsoleTextMaskCandidates(canvas); } catch(_) {}
 
-  if(!candidates.length) {
-    // Still veil the most common central branding zone very lightly, so a visible
-    // wordmark cannot dominate the game even if image analysis finds nothing.
-    candidates=[{
-      x:Math.round(canvas.width*0.34),
-      y:Math.round(canvas.height*0.40),
-      w:Math.round(canvas.width*0.32),
-      h:Math.round(canvas.height*0.14)
-    }];
-  }
+  // Do not invent a mask when the detector is unsure.
+  if(!candidates.length) return canvas.toDataURL("image/jpeg",0.9);
 
   for(const box of candidates) {
-    const padX=Math.round(box.w*0.16);
-    const padY=Math.round(box.h*0.35);
+    const padX=Math.round(box.w*0.08);
+    const padY=Math.round(box.h*0.12);
     const x=Math.max(0,box.x-padX);
     const y=Math.max(0,box.y-padY);
     const w=Math.min(canvas.width-x,box.w+padX*2);
