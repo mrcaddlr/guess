@@ -59,58 +59,6 @@ const categories = {
     "The Elder Scrolls","Fallout","Kingdom Hearts","Street Fighter","Mortal Kombat",
     "Star Wars","Marvel","DC Comics","Harry Potter","Jurassic Park"
   ],
-  Animation: [
-    "Toy Story","Finding Nemo","The Incredibles","Ratatouille","Up",
-    "WALL-E","Frozen","Moana","The Lion King","Aladdin",
-    "Beauty and the Beast","How to Train Your Dragon","Kung Fu Panda","Despicable Me","The Simpsons",
-    "Adventure Time","Regular Show","Rick and Morty","SpongeBob SquarePants","Avatar: The Last Airbender"
-  ],
-  Horror: [
-    "The Exorcist","Halloween","A Nightmare on Elm Street","Friday the 13th","Scream",
-    "The Texas Chain Saw Massacre","The Conjuring","It","The Ring","The Grudge",
-    "Saw","Insidious","Hereditary","The Babadook","The Blair Witch Project",
-    "Resident Evil","Silent Hill","Dead by Daylight","Five Nights at Freddy's","Amnesia: The Dark Descent"
-  ],
-  "Sci-Fi": [
-    "Blade Runner","Blade Runner 2049","The Terminator","Terminator 2: Judgment Day","Alien",
-    "Aliens","The Matrix","Interstellar","2001: A Space Odyssey","Star Wars",
-    "Star Trek","Dune","Dune: Part Two","The Martian","Arrival",
-    "Ex Machina","Portal","Half-Life","Mass Effect","Cyberpunk 2077"
-  ],
-  Fantasy: [
-    "The Lord of the Rings","The Hobbit","Harry Potter","The Chronicles of Narnia",
-    "Game of Thrones","House of the Dragon","The Witcher","Skyrim","Elden Ring",
-    "Dark Souls","Final Fantasy","Kingdom Hearts","The Legend of Zelda",
-    "World of Warcraft","Dungeons & Dragons","Percy Jackson","How to Train Your Dragon",
-    "Maleficent","Pan's Labyrinth","The NeverEnding Story"
-  ]
-};
-
-const $ = s => document.querySelector(s);
-const categoriesEl = $("#categories");
-let score = 0, streak = 0, round = 0, current = null, used = new Set(), busy = false;
-
-function renderCategories() {
-  categoriesEl.innerHTML = "";
-  Object.keys(categories).forEach(name => {
-    const b = document.createElement("button");
-    b.className = "category";
-    b.innerHTML = "<strong>" + name + "</strong><span>" + categories[name].length + " subjects</span>";
-    b.onclick = () => startCategory(name);
-    categoriesEl.appendChild(b);
-  });
-}
-
-function normalize(s) {
-  return s.toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[×:.,'’!?()\-]/g, " ")
-    .replace(/[^a-z0-9 ]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-const answerAliases = {
   "the godfather": ["godfather"],
   "pulp fiction": ["pulpfiction"],
   "the dark knight": ["dark knight", "tdk"],
@@ -401,120 +349,7 @@ async function getSubjectImage(title) {
     TV: [() => searchTMDB(title, "tv")],
     Animation: [() => searchTMDB(title, "movie"), () => searchTMDB(title, "tv")],
     Horror: [() => searchTMDB(title, "movie"), () => searchTMDB(title, "tv")],
-    "Sci-Fi": [() => searchTMDB(title, "movie"), () => searchTMDB(title, "tv")],
-    Fantasy: [() => searchTMDB(title, "movie"), () => searchTMDB(title, "tv")],
-    Consoles: [() => getWikipediaPage(title)],
-    Characters: [() => getWikipediaPage(title)],
-    People: [() => searchTMDB(title, "movie"), () => getWikipediaPage(title)],
-    Places: [() => getWikipediaPage(title)],
-    Objects: [() => getWikipediaPage(title)],
-    Franchises: [() => getWikipediaPage(title)]
-  };
-
-  const sources = sourceMap[current.name] || [() => getWikipediaPage(title)];
-  for (const source of sources) {
-    try { return await source(); } catch (_) {}
-  }
-  throw new Error("No category-specific image source worked");
-}
-
-async function chooseSubject() {
-  const pool = categories[current.name];
-  const available = pool.filter(title => !used.has(normalize(title)));
-  if (!available.length) used.clear();
-  const shuffled = [...(available.length ? available : pool)].sort(() => Math.random() - 0.5);
-  for (const title of shuffled.slice(0, 10)) {
-    const key = normalize(title);
-    if (used.has(key)) continue;
-    try {
-      const subject = await getSubjectImage(title);
-      used.add(key);
-      return subject;
-    } catch (_) {}
-  }
-  throw new Error("Couldn't find a usable subject");
-}
-
-async function nextRound() {
-  if (busy) return;
-  busy = true;
-  round++;
-  $("#roundLabel").textContent = "round " + round;
-  $("#lastPoints").textContent = "0";
-  $("#feedback").textContent = "";
-  $("#feedback").className = "feedback";
-  $("#answer").value = "";
-  $("#questionHint").textContent = "type your answer";
-  $("#questionImage").hidden = true;
-  $(".loading").textContent = "finding an image…";
-  $(".loading").classList.remove("hidden");
-
-  try {
-    const subject = await chooseSubject();
-    current.subject = subject;
-
-    $("#questionImage").src = subject.image;
-    $("#questionImage").alt = "Guess the subject";
-    $("#questionImage").hidden = false;
-    $(".loading").classList.add("hidden");
-  } catch (e) {
-    $(".loading").textContent = "couldn't find an image — trying again…";
-    busy = false;
-    setTimeout(nextRound, 300);
-    return;
-  }
-
-  busy = false;
-  $("#answer").focus();
-}
-
-function startCategory(name) {
-  current = { name, subject: null };
-  round = 0;
-  used.clear();
-  $("#categoryLabel").textContent = name.toUpperCase();
-  $("#home").classList.remove("active");
-  $("#game").classList.add("active");
-  nextRound();
-}
-
-function finish(points, msg, good) {
-  score += points;
-  $("#score").textContent = score;
-  $("#lastPoints").textContent = points;
-  $("#feedback").innerHTML = msg;
-  $("#feedback").className = "feedback " + (good ? "good" : "bad");
-}
-
-$("#answerForm").addEventListener("submit", e => {
-  e.preventDefault();
-  if (!current?.subject || busy) return;
-
-  const guess = $("#answer").value.trim();
-  if (!guess) return;
-
-  const sim = similarity(guess, current.subject.title);
-
-  if (sim === 1 || sim >= .88) {
-    streak++;
-    const points = 100 + Math.min(streak - 1, 10) * 10;
-    finish(points, "correct — <strong>" + current.subject.title + "</strong>", true);
-    setTimeout(nextRound, 900);
-  } else {
-    streak = 0;
-    $("#streak").textContent = streak;
-    finish(0, "not quite. try again, skip, or reveal.", false);
-  }
-
-  $("#streak").textContent = streak;
-});
-
-$("#skip").onclick = () => {
-  if (!current?.subject || busy) return;
-  streak = 0;
-  $("#streak").textContent = 0;
-  finish(0, "skipped — <strong>" + current.subject.title + "</strong>", false);
-  setTimeout(nextRound, 700);
+    "Sci-Fi": [() => searchTMDB(title, "movie"), () => searchTMDB(title, "tv")]
 };
 
 $("#reveal").onclick = () => {
@@ -535,4 +370,49 @@ $("#randomCategory").onclick = () => {
   startCategory(keys[Math.floor(Math.random() * keys.length)]);
 };
 
-renderCategories();
+renderCategories();function renderCategories() {
+  categoriesEl.innerHTML = "";
+
+  const movie = document.createElement("div");
+  movie.className = "category-group";
+  const movieButton = document.createElement("button");
+  movieButton.className = "category";
+  movieButton.innerHTML = "<strong>Movies</strong><span>choose a movie genre</span>";
+  movieButton.onclick = () => {
+    const existing = movie.querySelector(".subcategory-grid");
+    if (existing) {
+      existing.remove();
+      return;
+    }
+    const grid = document.createElement("div");
+    grid.className = "subcategory-grid";
+    Object.entries(movieSubcategories).forEach(([name, pool]) => {
+      const b = document.createElement("button");
+      b.className = "category subcategory";
+      b.innerHTML = "<strong>" + name + "</strong><span>" + pool.length + " subjects</span>";
+      b.onclick = () => startCategory("Movies — " + name, pool, "Movies");
+      grid.appendChild(b);
+    });
+    movie.appendChild(grid);
+  };
+  movie.appendChild(movieButton);
+  categoriesEl.appendChild(movie);
+
+  Object.keys(categories).filter(name => name !== "Movies").forEach(name => {
+    const b = document.createElement("button");
+    b.className = "category";
+    b.innerHTML = "<strong>" + name + "</strong><span>" + categories[name].length + " subjects</span>";
+    b.onclick = () => startCategory(name, categories[name], name);
+    categoriesEl.appendChild(b);
+  });
+}
+function startCategory(name, pool = categories[name], sourceCategory = name) {
+  current = { name, pool, sourceCategory, subject: null };
+  round = 0;
+  used.clear();
+  $("#categoryLabel").textContent = name.toUpperCase();
+  $("#home").classList.remove("active");
+  $("#game").classList.add("active");
+  nextRound();
+}
+
