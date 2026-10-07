@@ -950,6 +950,11 @@ async function initLiquidGlass(){
   try{
     glass.classList.add("webgl-glass-loading");
 
+    // Force the outer glass surface through LiquidGlass's dynamic path.
+    // This keeps its shader continuously refreshed instead of going idle
+    // until a pointer event, mutation, or other dirty signal occurs.
+    glass.setAttribute("data-dynamic","");
+
     // Start the renderer immediately instead of waiting for LiquidGlass
     // to finish its expensive initial font and html-to-image captures.
     // The actual visual glass settings remain unchanged.
