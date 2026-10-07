@@ -40,7 +40,19 @@ body,img{-webkit-touch-callout:none}
 img{user-select:none;-webkit-user-drag:none}
 button,input{font:inherit}
 button{touch-action:manipulation}
+.liquid-bg{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background:
+    radial-gradient(700px 520px at 10% -5%,rgba(90,112,255,.30),transparent 68%),
+    radial-gradient(650px 520px at 92% 8%,rgba(255,110,184,.22),transparent 67%),
+    radial-gradient(800px 650px at 50% 105%,rgba(80,210,190,.15),transparent 70%);
+}
 .app{
+  position:relative;
+  z-index:1;
   width:min(1180px,calc(100% - 28px));
   min-height:calc(100vh - 28px);
   margin:14px auto;
@@ -140,7 +152,8 @@ button{touch-action:manipulation}
   grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
   gap:10px;
 }
-.category-card{
+.category{
+  width:100%;
   min-height:92px;
   padding:18px;
   color:#fff;
@@ -152,9 +165,33 @@ button{touch-action:manipulation}
   backdrop-filter:blur(18px) saturate(140%);
   -webkit-backdrop-filter:blur(18px) saturate(140%);
   cursor:pointer;
+  appearance:none;
   transition:transform .2s ease,background .2s ease,border-color .2s ease;
 }
-.category-card:hover{transform:translateY(-3px);background:rgba(255,255,255,.105);border-color:rgba(255,255,255,.2)}
+.category strong{display:block;font-size:15px;line-height:1.1;margin-bottom:7px}
+.category span{display:block;font-size:12px;color:#aaa9b3;line-height:1.35}
+.category:hover{transform:translateY(-3px);background:rgba(255,255,255,.105);border-color:rgba(255,255,255,.2)}
+.category:focus-visible,.ghost:focus-visible,.text-btn:focus-visible,#answer:focus-visible,#answerForm button:focus-visible,.source-credit:focus-visible{
+  outline:2px solid rgba(255,255,255,.8);
+  outline-offset:2px;
+}
+.dropdown-toggle[data-open]{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.12)}
+.subcategory-grid{
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+  margin:-2px 0 2px;
+}
+.subcategory-grid[hidden]{display:none}
+.subcategory{
+  min-height:80px;
+  padding:14px;
+  border-radius:20px;
+}
+.subcategory strong{font-size:14px}
+.subcategory span{font-size:11px}
+
 .game-head{align-items:center;padding:20px 0 14px}
 .round-score{font-weight:700;color:#fff}
 .card{
@@ -230,7 +267,9 @@ button{touch-action:manipulation}
 .actions{display:flex;gap:8px;margin-top:12px}
 .feedback{min-height:22px;margin:20px 0 0;color:#a9a8b2;font-size:13px;line-height:1.45}
 .feedback.typo{color:#ffd36e}
-.feedback.wrong{color:#ff9b9b}
+.feedback.wrong,.feedback.bad{color:#ff9b9b}
+.feedback.good{color:#b8e9c2}
+.feedback strong{color:#fff}
 @media(max-width:820px){
   .app{width:calc(100% - 16px);margin:8px auto;border-radius:27px;padding:10px 12px 34px}
   .topbar{height:58px;border-radius:19px}
@@ -242,7 +281,7 @@ button{touch-action:manipulation}
 @media(max-width:520px){
   .hero h1{font-size:58px}
   .category-grid{grid-template-columns:1fr 1fr}
-  .category-card{min-height:82px;padding:15px;border-radius:20px}
+  .category{min-height:82px;padding:15px;border-radius:20px}
   #answerForm{flex-direction:column}
   #answerForm button{min-height:48px}
 }
