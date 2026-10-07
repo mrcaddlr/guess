@@ -950,38 +950,65 @@ async function initLiquidGlass(){
   try{
     glass.classList.add("webgl-glass-loading");
 
-    // Keep the exact same glass configuration on every device.
-    // The speed fix is startup timing, not a visual-quality reduction.
-    liquidGlassInstance=await timeout(
-      window.LiquidGlass.init({
-        root,
-        glassElements:[glass],
-        defaults:{
-          blurAmount:0.28,
-          refraction:0.58,
-          chromAberration:0.01,
-          edgeHighlight:0.06,
-          specular:0.06,
-          fresnel:0.42,
-          distortion:0,
-          cornerRadius:34,
-          zRadius:20,
-          opacity:0.92,
-          saturation:0.02,
-          tintStrength:0.01,
-          brightness:0.01,
-          shadowOpacity:0.30,
-          shadowSpread:12,
-          shadowOffsetY:5,
-          bevelMode:0
-        }
-      }),
-      15000
-    );
+    // Start the renderer immediately instead of waiting for LiquidGlass
+    // to finish its expensive initial font and html-to-image captures.
+    // The actual visual glass settings remain unchanged.
+    const defaults={
+      blurAmount:0.28,
+      refraction:0.58,
+      chromAberration:0.01,
+      edgeHighlight:0.06,
+      specular:0.06,
+      fresnel:0.42,
+      distortion:0,
+      cornerRadius:34,
+      zRadius:20,
+      opacity:0.92,
+      saturation:0.02,
+      tintStrength:0.01,
+      brightness:0.01,
+      shadowOpacity:0.30,
+      shadowSpread:12,
+      shadowOffsetY:5,
+      bevelMode:0
+    };
 
+    const instance=new window.LiquidGlass({
+      root,
+      glassElements:[glass],
+      defaults
+    });
+
+    const capture=instance.capture;
+    const realPrefetch=capture.prefetchFontEmbedCSS.bind(capture);
+    const realCaptureToCanvas=capture.captureToCanvas.bind(capture);
+    const realCaptureElement=capture.captureElement.bind(capture);
+
+    capture.prefetchFontEmbedCSS=async()=>{};
+    capture.captureToCanvas=async()=>null;
+    capture.captureElement=async()=>{};
+
+    try{
+      await timeout(instance._start(),15000);
+    }finally{
+      capture.prefetchFontEmbedCSS=realPrefetch;
+      capture.captureToCanvas=realCaptureToCanvas;
+      capture.captureElement=realCaptureElement;
+    }
+
+    liquidGlassInstance=instance;
     glass.classList.remove("webgl-glass-loading");
     glass.classList.add("webgl-glass-ready");
-    liquidGlassInstance.markChanged();
+
+    // Fill the real scene cache asynchronously after the renderer is live.
+    for(const child of root.children){
+      if(instance.glassSet.has(child)) continue;
+      if(child.tagName==="CANVAS" || child.tagName==="IMG" || child.tagName==="VIDEO") continue;
+      if(child.hasAttribute("data-dynamic")) continue;
+      realCaptureElement(child,false).catch(()=>{});
+    }
+
+    instance.markChanged();
   }catch(error){
     console.warn("Liquid Glass failed; using the CSS fallback.",error);
     liquidGlassInstance=null;
